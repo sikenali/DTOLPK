@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DTOLPK - Docker to Lazycat Package Converter</title>
+    <!-- 网站图标 -->
+    <link rel="icon" href="build/icon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="build/icon.ico" type="image/x-icon">
+    <!-- FontAwesome CDN - 预加载关键CSS -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"></noscript>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 自定义 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6', // 主色调：蓝色
+                        secondary: '#6b7280', // 辅助色：灰色
+                        success: '#10b981', // 成功色：绿色
+                        warning: '#f59e0b', // 警告色：黄色
+                        danger: '#ef4444', // 错误色：红色
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            }
+        }
+    </script>
+    <!-- 自定义工具类 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .step-active {
+                @apply bg-primary text-white;
+            }
+            .step-completed {
+                @apply bg-success text-white;
+            }
+            .step-pending {
+                @apply bg-gray-200 text-gray-600;
+            }
+        }
+    </style>
+    <!-- 自定义样式 -->
+    <style>
+        body {
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        .sidebar {
+            background-color: #ffffff;
+            border-right: 1px solid #e5e7eb;
+            width: 200px; /* 调整为更合适的宽度 */
+        }
+        .content {
+            background-color: #f9fafb;
+        }
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .step-number {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .step-item:hover .step-number {
+            transform: scale(1.1);
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-primary:active {
+            transform: translateY(1px);
+            box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.1), 0 0 0 0 rgba(0, 0, 0, 0.06);
+        }
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+        .btn-secondary:active {
+            transform: translateY(1px);
+            box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.1), 0 0 0 0 rgba(0, 0, 0, 0.06);
+        }
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+        .btn-danger:active {
+            transform: translateY(1px);
+            box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.1), 0 0 0 0 rgba(0, 0, 0, 0.06);
+        }
+        .input-field {
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            width: 100%;
+            transition: all 0.2s ease;
+            background-color: #ffffff;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            transform: translateY(-1px);
+        }
+        .input-field:hover {
+            border-color: #9ca3af;
+        }
+        .input-field:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #f3f4f6;
+        }
+        /* 仅为select元素添加下拉箭头 */
+        select.input-field {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+        .progress-bar {
+            background-color: #e5e7eb;
+            border-radius: 9999px;
+            height: 0.5rem;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        /* 步骤内容样式 */
+        .step-content {
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        /* 步骤导航样式优化 */
+        .step-item {
+            transition: all 0.3s ease;
+        }
+        
+        .step-item:hover {
+            background-color: #eff6ff;
+        }
+        
+        /* 统一标签样式 */
+        label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        /* 统一必填项星号样式 */
+        .required::after {
+            content: ' *';
+            color: #ef4444;
+            font-weight: bold;
+        }
+        
+        /* 统一错误提示样式 */
+        .error-message {
+            font-size: 0.75rem;
+            color: #ef4444;
+            margin-top: 0.25rem;
+            display: block;
+        }
+        
+        /* 统一帮助文本样式 */
+        .help-text {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+            display: block;
+        }
+        
+        /* 加载状态样式 */
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+            position: relative;
+        }
+        
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+    <!-- 左侧导航栏 -->
+    <div class="sidebar w-48 flex-shrink-0 flex flex-col bg-white border-r border-gray-200">
+        <!-- 应用 Logo - 左上显示 -->
+        <div class="p-1 border-b border-gray-200 bg-white flex items-center justify-center">
+            <div class="flex flex-col items-center justify-center">
+                <div class="w-8 h-8 flex items-center justify-center">
+                    <svg width="32" height="32" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M32 8C18.7452 8 8 18.7452 8 32C8 45.2548 18.7452 56 32 56C45.2548 56 56 45.2548 56 32C56 18.7452 45.2548 8 32 8ZM32 52C19.8497 52 10 42.1503 10 30C10 17.8497 19.8497 8 32 8C44.1503 8 54 17.8497 54 30C54 42.1503 44.1503 52 32 52Z" fill="url(#paint0_linear_1_2)"/>
+                        <path d="M32 8C18.7452 8 8 18.7452 8 32C8 45.2548 18.7452 56 32 56C45.2548 56 56 45.2548 56 32C56 18.7452 45.2548 8 32 8ZM32 52C19.8497 52 10 42.1503 10 30C10 17.8497 19.8497 8 32 8C44.1503 8 54 17.8497 54 30C54 42.1503 44.1503 52 32 52Z" stroke="url(#paint1_linear_1_2)" stroke-width="2"/>
+                        <path d="M32 14C25.3726 14 20 19.3726 20 26C20 32.6274 25.3726 38 32 38C38.6274 38 44 32.6274 44 26C44 19.3726 38.6274 14 32 14Z" fill="url(#paint2_linear_1_2)"/>
+                        <path d="M32 14C25.3726 14 20 19.3726 20 26C20 32.6274 25.3726 38 32 38C38.6274 38 44 32.6274 44 26C44 19.3726 38.6274 14 32 14Z" stroke="url(#paint3_linear_1_2)" stroke-width="2"/>
+                        <path d="M32 20C28.6863 20 26 22.6863 26 26C26 29.3137 28.6863 32 32 32C35.3137 32 38 29.3137 38 26C38 22.6863 35.3137 20 32 20Z" fill="url(#paint4_linear_1_2)"/>
+                        <path d="M32 20C28.6863 20 26 22.6863 26 26C26 29.3137 28.6863 32 32 32C35.3137 32 38 29.3137 38 26C38 22.6863 35.3137 20 32 20Z" stroke="url(#paint5_linear_1_2)" stroke-width="2"/>
+                        <defs>
+                            <linearGradient id="paint0_linear_1_2" x1="8" y1="32" x2="56" y2="32" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#6366F1"/>
+                                <stop offset="1" stop-color="#8B5CF6"/>
+                            </linearGradient>
+                            <linearGradient id="paint1_linear_1_2" x1="8" y1="32" x2="56" y2="32" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#6366F1"/>
+                                <stop offset="1" stop-color="#8B5CF6"/>
+                            </linearGradient>
+                            <linearGradient id="paint2_linear_1_2" x1="20" y1="26" x2="44" y2="26" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#6366F1"/>
+                                <stop offset="1" stop-color="#8B5CF6"/>
+                            </linearGradient>
+                            <linearGradient id="paint3_linear_1_2" x1="20" y1="26" x2="44" y2="26" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#6366F1"/>
+                                <stop offset="1" stop-color="#8B5CF6"/>
+                            </linearGradient>
+                            <linearGradient id="paint4_linear_1_2" x1="26" y1="26" x2="38" y2="26" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#6366F1"/>
+                                <stop offset="1" stop-color="#8B5CF6"/>
+                            </linearGradient>
+                            <linearGradient id="paint5_linear_1_2" x1="26" y1="26" x2="38" y2="26" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#6366F1"/>
+                                <stop offset="1" stop-color="#8B5CF6"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="mt-0.5 text-blue-600 font-bold text-sm">DTOLPK</div>
+            </div>
+        </div>
+        
+        <!-- 菜单导航 - 左边导航区域显示 -->
+        <div class="flex-1 overflow-y-auto">
+            <ul class="space-y-0">
+                <li class="step-item" data-step="1">
+                    <div class="flex items-center space-x-3 cursor-pointer p-1 transition-all duration-200 bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-info-circle text-blue-500"></i>
+                        </div>
+                        <div class="font-medium text-blue-700">应用信息</div>
+                    </div>
+                </li>
+                <li class="step-item" data-step="2">
+                    <div class="flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-cogs text-gray-300"></i>
+                        </div>
+                        <div class="font-medium text-gray-800">应用功能</div>
+                    </div>
+                </li>
+                <li class="step-item" data-step="3">
+                    <div class="flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-boxes text-gray-300"></i>
+                        </div>
+                        <div class="font-medium text-gray-800">资源配置</div>
+                    </div>
+                </li>
+                <li class="step-item" data-step="4">
+                    <div class="flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-route text-gray-300"></i>
+                        </div>
+                        <div class="font-medium text-gray-800">路由配置</div>
+                    </div>
+                </li>
+                <li class="step-item" data-step="5">
+                    <div class="flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-docker text-gray-300"></i>
+                        </div>
+                        <div class="font-medium text-gray-800">镜像配置</div>
+                    </div>
+                </li>
+                <li class="step-item" data-step="6">
+                    <div class="flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-wrench text-gray-300"></i>
+                        </div>
+                        <div class="font-medium text-gray-800">构建配置</div>
+                    </div>
+                </li>
+                <li class="step-item" data-step="7">
+                    <div class="flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-sliders-h text-gray-300"></i>
+                        </div>
+                        <div class="font-medium text-gray-800">高级配置</div>
+                    </div>
+                </li>
+                <li class="step-item" data-step="8">
+                    <div class="flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50">
+                        <div class="w-9 h-9 flex items-center justify-center">
+                            <i class="fa fa-file-download text-gray-300"></i>
+                        </div>
+                        <div class="font-medium text-gray-800">生成 LPK</div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+        
+
+        
+        <!-- 底部信息 -->
+        <div class="p-4 border-t border-gray-200">
+            <div class="text-xs text-gray-500 text-center">
+                <div>版本: 1.0.0</div>
+                <div class="mt-1">© 2025 DTOLPK</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 右侧内容区 -->
+    <div class="content flex-1 overflow-y-auto p-6">
+
+        
+        <!-- 配置信息 -->
+        <div class="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div class="flex justify-between items-center mb-2">
+                <div class="text-sm font-medium text-gray-700" id="section-title">应用信息</div>
+                <div class="text-sm text-gray-500" id="progress-text">1/8</div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 12.5%"></div>
+            </div>
+        </div>
+        
+        <!-- 步骤内容 -->
+        <div class="space-y-6">
+            <!-- 步骤 1: 应用信息 -->
+            <div class="step-content" id="step-1" style="display: block;">
+                <div class="card p-6">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- 应用名称 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1 required">应用名称</label>
+                            <input type="text" class="input-field" id="app-name" placeholder="请输入应用名称">
+                        </div>
+                        
+                        <!-- 应用包名 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1 required">应用包名</label>
+                            <input type="text" class="input-field" id="app-package" placeholder="请输入应用包名，如 com.example.app">
+                        </div>
+                        
+                        <!-- 应用版本 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1 required">应用版本</label>
+                            <input type="text" class="input-field" id="app-version" placeholder="请输入版本号，如 1.0.0">
+                        </div>
+                        
+                        <!-- 作者 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">作者</label>
+                            <input type="text" class="input-field" id="app-author" placeholder="请输入作者名称">
+                        </div>
+                        
+                        <!-- 应用描述 -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">应用描述</label>
+                            <textarea class="input-field" id="app-description" rows="3" placeholder="请输入应用描述"></textarea>
+                        </div>
+                        
+                        <!-- 应用首页 -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">应用首页</label>
+                            <input type="text" class="input-field" id="app-homepage" placeholder="请输入应用首页 URL">
+                        </div>
+                        
+                        <!-- 不支持的平台 -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">不支持的平台</label>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" id="platform-ios" class="rounded text-primary focus:ring-primary">
+                                    <span>iOS 和 iPad 移动端</span>
+                                </label>
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" id="platform-android" class="rounded text-primary focus:ring-primary">
+                                    <span>Android 移动端</span>
+                                </label>
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" id="platform-linux" class="rounded text-primary focus:ring-primary">
+                                    <span>Linux 桌面端</span>
+                                </label>
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" id="platform-windows" class="rounded text-primary focus:ring-primary">
+                                    <span>Windows 桌面端</span>
+                                </label>
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" id="platform-macos" class="rounded text-primary focus:ring-primary">
+                                    <span>macOS 桌面端</span>
+                                </label>
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" id="platform-tvos" class="rounded text-primary focus:ring-primary">
+                                    <span>懒猫智慧屏平台端</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- 系统版本要求 -->
+                        <div class="md:col-span-2">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <input type="checkbox" id="has-version-requirement" class="rounded text-primary focus:ring-primary">
+                                <label class="block text-sm font-medium text-gray-700">需要限制系统版本</label>
+                            </div>
+                            <div id="version-requirement-field" style="display: none; padding-left: 1.5rem; margin-bottom: 1rem;">
+                                <input type="text" class="input-field" id="min-os-version" placeholder="请输入最低系统版本要求，如: >= 1.0.18" value=">= 1.0.18">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 步骤 2: 应用功能 -->
+            <div class="step-content" id="step-2" style="display: none;">
+                <div class="card p-6">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- 开机自启 -->
+                        <div class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg">
+                            <input type="checkbox" id="feature-background-task" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <div>
+                                <div class="font-medium">开机自启，后台运行</div>
+                                <div class="text-sm text-gray-500">应用将在系统启动时自动运行</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 多用户共享 -->
+                        <div class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg">
+                            <input type="checkbox" id="feature-multi-instance" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <div>
+                                <div class="font-medium">每个用户创建一个实例</div>
+                                <div class="text-sm text-gray-500">为每个用户创建独立的应用实例</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 公开路由 -->
+                        <div class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg">
+                            <input type="checkbox" id="feature-public-path" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <div>
+                                <div class="font-medium">公开路由</div>
+                                <div class="text-sm text-gray-500">无需登录即可访问的路由</div>
+                            </div>
+                        </div>
+                        
+                        <!-- GPU加速 -->
+                        <div class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg">
+                            <input type="checkbox" id="feature-gpu-accel" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <div>
+                                <div class="font-medium">GPU加速</div>
+                                <div class="text-sm text-gray-500">启用 GPU 加速支持</div>
+                            </div>
+                        </div>
+                        
+                        <!-- KVM加速 -->
+                        <div class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg">
+                            <input type="checkbox" id="feature-kvm-accel" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <div>
+                                <div class="font-medium">KVM加速</div>
+                                <div class="text-sm text-gray-500">启用 KVM 虚拟化加速</div>
+                            </div>
+                        </div>
+                        
+                        <!-- USB设备挂载 -->
+                        <div class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg">
+                            <input type="checkbox" id="feature-usb-accel" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <div>
+                                <div class="font-medium">USB设备挂载</div>
+                                <div class="text-sm text-gray-500">支持 USB 设备挂载</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 文件关联 -->
+                        <div class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg">
+                            <input type="checkbox" id="feature-file-handler" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <div>
+                                <div class="font-medium">文件关联</div>
+                                <div class="text-sm text-gray-500">可以打开特定类型文件</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 步骤 3: 资源配置 -->
+            <div class="step-content" id="step-3" style="display: none;">
+                <div class="card p-6">
+                    
+                    <div class="space-y-6">
+                        <!-- 图标文件选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">图标文件</label>
+                            <div class="flex items-center space-x-3">
+                                <input type="text" class="input-field flex-1" id="icon-path" placeholder="请选择图标文件">
+                                <button type="button" class="btn-primary" id="select-icon-btn">
+                                    <i class="fa fa-folder-open mr-1"></i> 选择文件
+                                </button>
+                                <button type="button" class="btn-danger" id="remove-icon-btn">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </div>
+                            <div class="mt-2" id="icon-preview" style="display: none;">
+                                <img src="" alt="图标预览" class="w-16 h-16 object-cover border border-gray-200 rounded">
+                            </div>
+                        </div>
+                        
+                        <!-- Docker Compose 文件选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1 required">Docker Compose 文件</label>
+                            <div class="flex items-center space-x-3 mb-3">
+                                <button type="button" class="btn-primary" id="select-compose-btn">
+                                    <i class="fa fa-folder-open mr-1"></i> 添加文件
+                                </button>
+                            </div>
+                            <!-- Docker Compose 文件列表 -->
+                            <div id="compose-files-list" class="mb-3">
+                                <!-- 动态添加的文件列表项将显示在这里 -->
+                            </div>
+                            <!-- 主要 Docker Compose 文件内容显示 -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">文件内容</label>
+                                <textarea id="compose-content" class="input-field w-full h-48 p-3 border border-gray-300 rounded-lg resize-none font-mono text-sm" readonly placeholder="选择 Docker Compose 文件后将显示文件内容"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 步骤 4: 路由配置 -->
+            <div class="step-content" id="step-4" style="display: none;">
+                <div class="card p-6">
+                    
+                    <div class="mb-6">
+                        <button type="button" class="btn-primary" id="add-route-btn">
+                            <i class="fa fa-plus mr-1"></i> 添加路由
+                        </button>
+                    </div>
+                    
+                    <div id="routes-container" class="space-y-4">
+                        <!-- 路由配置项将动态添加 -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 步骤 5: 镜像配置 -->
+            <div class="step-content" id="step-5" style="display: none;">
+                <div class="card p-6">
+                    
+                    <div class="space-y-6">
+                        <!-- 镜像推送目标 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">镜像推送目标</label>
+                            <select class="input-field" id="push-target">
+                                <option value="none">使用原始镜像</option>
+                                <option value="custom">自定义镜像仓库</option>
+                                <option value="lazycat" selected>懒猫微服官方镜像仓库</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 自定义镜像仓库地址 -->
+                        <div id="custom-registry-field" style="display: none;">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">推送自定义镜像仓库</label>
+                            <input type="text" class="input-field" id="registry-url" placeholder="请输入自定义镜像仓库地址">
+                        </div>
+                        
+                        <!-- 懒猫微服官方镜像仓库地址 -->
+                        <div id="lazycat-box-field" style="display: none;">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">官方镜像仓库地址</label>
+                            <input type="text" class="input-field" id="box-name" placeholder="registry.lazycat.cloud/用户名/镜像名:版本">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 步骤 6: 构建配置 -->
+            <div class="step-content" id="step-6" style="display: none;">
+                <div class="card p-6">
+                    
+                    <div class="space-y-6">
+                        <!-- 构建上下文 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">构建上下文</label>
+                            <input type="text" class="input-field" id="build-context" placeholder="." value=".">
+                        </div>
+                        
+                        <!-- Dockerfile 路径 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Dockerfile 路径</label>
+                            <div class="flex items-center space-x-3 mb-3">
+                                <input type="text" class="input-field flex-1" id="dockerfile-path" placeholder="Dockerfile">
+                                <button type="button" class="btn-primary" id="select-dockerfile-btn">
+                                    <i class="fa fa-folder-open mr-1"></i> 选择文件
+                                </button>
+                                <button type="button" class="btn-secondary" id="refresh-dockerfile-btn" title="刷新文件内容">
+                                    <i class="fa fa-sync-alt"></i>
+                                </button>
+                            </div>
+                            <!-- Dockerfile 文件内容显示 -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">文件内容</label>
+                                <textarea id="dockerfile-content" class="input-field w-full h-48 p-3 border border-gray-300 rounded-lg resize-none font-mono text-sm" readonly placeholder="选择 Dockerfile 文件后将显示文件内容"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 步骤 7: 高级配置 -->
+            <div class="step-content" id="step-7" style="display: none;">
+                <div class="card p-6">
+                    
+                    <div class="space-y-6">
+                        <!-- 环境变量 -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3">环境变量</h3>
+                            <div id="env-variables-container" class="space-y-3">
+                                <!-- 环境变量配置项将动态添加 -->
+                            </div>
+                            <button type="button" class="btn-primary mt-3" id="add-env-btn">
+                                <i class="fa fa-plus mr-1"></i> 添加环境变量
+                            </button>
+                        </div>
+                        
+                        <!-- 卷挂载 -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3">卷挂载配置</h3>
+                            <div id="volumes-container" class="space-y-3">
+                                <!-- 卷挂载配置项将动态添加 -->
+                            </div>
+                            <button type="button" class="btn-primary mt-3" id="add-volume-btn">
+                                <i class="fa fa-plus mr-1"></i> 添加卷挂载
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 步骤 8: 生成 LPK -->
+            <div class="step-content" id="step-8" style="display: none;">
+                <div class="card p-6">
+                    
+                    <div class="space-y-6">
+                        <!-- 输出LPK目录选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1 required">输出LPK目录</label>
+                            <div class="flex items-center space-x-3">
+                                <input type="text" class="input-field flex-1" id="output-directory" placeholder="请选择输出LPK目录">
+                                <button type="button" class="btn-primary" id="select-output-dir-btn">
+                                    <i class="fa fa-folder-open mr-1"></i> 选择目录
+                                </button>
+                            </div>
+                        </div>
+                        
+
+                        
+                        <!-- 开始转换按钮 -->
+                        <div class="flex justify-center">
+                            <button type="button" class="btn-primary text-lg px-8 py-3" id="start-convert-btn">
+                                <i class="fa fa-play mr-2"></i> 开始转换
+                            </button>
+                        </div>
+                        
+
+                        
+                        <!-- 转换进度 -->
+                        <div class="mt-6">
+                            <div class="flex justify-between items-center mb-3">
+                                <div class="text-sm font-medium text-gray-700">转换进度</div>
+                                <div class="text-sm font-medium text-blue-600" id="progress-percentage">0%</div>
+                            </div>
+                            <div class="progress-bar mb-4">
+                                <div class="progress-fill" id="convert-progress-fill" style="width: 0%"></div>
+                            </div>
+                            <div id="convert-log" class="border border-gray-200 rounded-lg p-4 h-64 overflow-y-auto bg-gray-50 text-sm">
+                                <div class="text-gray-500">准备开始转换...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+
+    </div>
+    
+    <!-- JavaScript 脚本 - 确保DOM加载完成后执行 -->
+    <script src="js/config.js"></script>
+    <script src="js/steps.js"></script>
+    <script>
+        // 确保DOM加载完成后再初始化StepManager
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化StepManager
+            const stepManager = new StepManager();
+            window.stepManager = stepManager;
+        });
+    </script>
+</body>
+</html>

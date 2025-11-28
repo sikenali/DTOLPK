@@ -1,0 +1,62 @@
+{
+  "name": "dtolpk",
+  "version": "1.0.0",
+  "description": "Docker to Lazycat Package Converter",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "electron",
+    "docker",
+    "lazycat",
+    "lpk",
+    "converter"
+  ],
+  "author": "glzjin",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^39.2.3",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "archiver": "^5.3.1",
+    "dotenv": "^16.4.5",
+    "fs-extra": "^11.2.0",
+    "tar": "^6.2.0",
+    "yaml": "^2.3.4"
+  },
+  "build": {
+    "appId": "com.dtolpk.app",
+    "productName": "DTOLPK",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/**/*"
+    ],
+    "icon": "build/icon.ico",
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.svg"
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "rpm",
+        "AppImage"
+      ],
+      "icon": "build/icon.svg"
+    }
+  }
+}
