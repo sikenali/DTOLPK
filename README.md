@@ -41,13 +41,15 @@ docker2lzc --compose <file> --output <dir>  # 命令行模式转换
 
 ## 各平台编译生成
 
+> 其他平台没有打包测试验证，可自行下载源码进行编译。
+
 ### 环境要求
 
 - Node.js >= 14.x
 - npm >= 6.x
 - Git
 
-### Windows 平台
+### Windows 平台(开发环境)
 
 ```bash
 # 克隆仓库
