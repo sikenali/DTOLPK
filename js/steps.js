@@ -1232,7 +1232,9 @@ class StepManager {
     }
 
     isLikelyImagePath(filePath) {
-        const value = String(filePath || '').toLowerCase();
+        const value = String(filePath || '').trim().toLowerCase();
+        // browser:// 仅用于显示文件名，不是可直接加载的图片 URL
+        if (value.startsWith('browser://')) return false;
         return /\.(png|jpe?g|gif|bmp|webp|svg|ico|avif)$/.test(value);
     }
 
@@ -1248,11 +1250,25 @@ class StepManager {
         if (img) img.removeAttribute('src');
     }
 
+    normalizeIconPreviewSource(previewSrc) {
+        const raw = String(previewSrc || '').trim();
+        if (!raw) return '';
+        if (raw.startsWith('browser://')) return 'build/icon.svg';
+        if (/^(https?:|data:|blob:|file:)/i.test(raw)) return raw;
+        if (/^[a-zA-Z]:[\\/]/.test(raw)) {
+            return `file:///${raw.replace(/\\/g, '/')}`;
+        }
+        if (raw.startsWith('/')) return `file://${raw}`;
+        return raw;
+    }
+
     setIconPreview(previewSrc) {
         const zone = document.getElementById('icon-upload-zone');
         const img = document.getElementById('icon-upload-preview-img');
         if (!zone || !img || !previewSrc) return;
-        img.src = previewSrc;
+        const normalizedSrc = this.normalizeIconPreviewSource(previewSrc);
+        if (!normalizedSrc) return;
+        img.src = normalizedSrc;
         zone.classList.add('has-preview');
     }
     
@@ -2340,8 +2356,10 @@ class StepManager {
     
     // 开始转换
     async startConversion() {
-        const logContainer = document.getElementById('convert-log');
-        logContainer.innerHTML = '<div class="text-gray-500">开始转换...</div>';
+        this.clearConvertLog();
+        this.log('开始转换...');
+        document.getElementById('progress-percentage').textContent = '0%';
+        document.getElementById('convert-progress-fill').style.width = '0%';
         
         // 初始化进度
         let progress = 0;
@@ -2363,9 +2381,9 @@ class StepManager {
             // 2. 验证配置
             const validation = configManager.validateConfig();
             if (!validation.valid) {
-                this.log('<span class="text-danger">配置验证失败：</span>');
+                this.log('配置验证失败：', 'error');
                 validation.errors.forEach(error => {
-                    this.log(`<span class="text-danger">- ${error}</span>`);
+                    this.log(`- ${error}`, 'error');
                 });
                 this.showNotification('配置验证失败，请检查输入信息！', 'error');
                 return;
@@ -2415,18 +2433,16 @@ class StepManager {
             
             if (result.success) {
                 // 5. 转换完成
-                this.log(`<span class="text-success">转换完成！LPK 文件已生成：${result.lpkFileName}</span>`);
-                this.log(`<span class="text-success">文件路径：${result.lpkPath}</span>`);
+                this.log(`转换完成！LPK 文件已生成：${result.lpkFileName}`, 'success');
+                if (result.lpkPath) {
+                    this.log(`文件路径：${result.lpkPath}`, 'success');
+                }
                 this.showNotification('转换成功！LPK 文件已生成', 'success');
-                
-                // 弹出生成目录对话框，询问是否直接访问
-                const lpkDirectory = result.lpkPath.substring(0, result.lpkPath.lastIndexOf('\\'));
-                await this.showOpenDirectoryDialog(lpkDirectory);
             } else {
                 throw new Error(result.error);
             }
         } catch (error) {
-            this.log(`<span class="text-danger">转换失败：${error.message}</span>`);
+            this.log(`转换失败：${error.message}`, 'error');
             console.error('转换失败:', error);
             this.showNotification('转换失败！请检查日志信息。', 'error');
         }
@@ -2667,11 +2683,84 @@ services:
         });
     }
     
-    // 日志输出
-    log(message) {
+    clearConvertLog(initialMessage = '') {
         const logContainer = document.getElementById('convert-log');
+        if (!logContainer) return;
+        logContainer.innerHTML = '';
+        if (initialMessage) {
+            const placeholder = document.createElement('div');
+            placeholder.id = 'convert-log-placeholder';
+            placeholder.className = 'terminal-placeholder';
+            placeholder.textContent = initialMessage;
+            logContainer.appendChild(placeholder);
+        }
+    }
+
+    async copyConvertLog() {
+        try {
+            const logContainer = document.getElementById('convert-log');
+            if (!logContainer) return;
+
+            const lineElements = Array.from(logContainer.querySelectorAll('.terminal-line'));
+            const text = lineElements.map((line) => {
+                const time = line.querySelector('.terminal-line-time')?.textContent || '';
+                const msg = line.querySelector('.terminal-line-message')?.textContent || '';
+                return `${time} ${msg}`.trim();
+            }).join('\n').trim();
+
+            if (!text) {
+                this.showNotification('暂无可复制日志', 'info');
+                return;
+            }
+
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+                textarea.remove();
+            }
+            this.showNotification('日志已复制到剪贴板', 'success');
+        } catch (error) {
+            console.error('复制日志失败:', error);
+            this.showNotification('复制日志失败', 'error');
+        }
+    }
+
+    // 日志输出
+    log(message, level = 'info') {
+        const logContainer = document.getElementById('convert-log');
+        if (!logContainer) return;
+
+        const rawText = String(message ?? '');
+        const normalizedLevel = ['success', 'error', 'info'].includes(level) ? level : 'info';
+        const cleanText = rawText.replace(/<[^>]*>/g, '').trim();
+        if (!cleanText) return;
+
+        const placeholder = logContainer.querySelector('#convert-log-placeholder');
+        if (placeholder) {
+            placeholder.remove();
+        }
+
         const logItem = document.createElement('div');
-        logItem.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logItem.className = `terminal-line terminal-line-${normalizedLevel}`;
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'terminal-line-time';
+        timeSpan.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+
+        const msgSpan = document.createElement('span');
+        msgSpan.className = 'terminal-line-message';
+        msgSpan.textContent = cleanText;
+
+        logItem.appendChild(timeSpan);
+        logItem.appendChild(msgSpan);
         logContainer.appendChild(logItem);
         logContainer.scrollTop = logContainer.scrollHeight;
     }

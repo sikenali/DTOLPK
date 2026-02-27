@@ -81,8 +81,8 @@ function createWindow() {
             // 启用远程模块（如果需要）
             enableRemoteModule: false
         },
-        // 浅色主题
-        backgroundColor: '#ffffff',
+        // 液态玻璃背景底色（防止窗口加载阶段白屏闪烁）
+        backgroundColor: '#dff1ff',
         // 窗口图标
         icon: appIconPath
     });
