@@ -210,8 +210,16 @@ class ConfigManager {
         const iconPath = document.getElementById('icon-path');
         if (iconPath) {
             iconPath.value = this.config.resources.iconPath || '';
-            if (iconPath.value && window.stepManager && typeof window.stepManager.setIconPreview === 'function') {
-                window.stepManager.setIconPreview(iconPath.value);
+            if (window.stepManager && typeof window.stepManager.clearIconPreview === 'function') {
+                window.stepManager.clearIconPreview();
+            }
+            if (iconPath.value && window.stepManager) {
+                const canPreviewPath = typeof window.stepManager.isLikelyImagePath === 'function'
+                    ? window.stepManager.isLikelyImagePath(iconPath.value)
+                    : true;
+                if (typeof window.stepManager.setIconPreview === 'function') {
+                    window.stepManager.setIconPreview(canPreviewPath ? iconPath.value : 'build/icon.svg');
+                }
             }
         }
         

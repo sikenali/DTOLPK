@@ -3,6 +3,7 @@ class StepManager {
     constructor() {
         this.currentStep = 1;
         this.totalSteps = 8;
+        this.iconPreviewObjectUrl = null;
         this.init();
     }
     
@@ -169,29 +170,23 @@ class StepManager {
 
     // 浏览器环境目录选择回退
     pickDirectoryInBrowser() {
-        return new Promise((resolve) => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.setAttribute('webkitdirectory', '');
-            input.setAttribute('directory', '');
-            input.multiple = true;
-            input.style.display = 'none';
-            document.body.appendChild(input);
-
-            input.addEventListener('change', () => {
-                const files = Array.from(input.files || []);
-                document.body.removeChild(input);
-                if (files.length === 0) {
+        return new Promise(async (resolve) => {
+            if (typeof window.showDirectoryPicker !== 'function') {
+                resolve('');
+                return;
+            }
+            try {
+                const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                const dirName = String(handle?.name || '').trim();
+                resolve(dirName ? `browser://${dirName}` : '');
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
                     resolve('');
                     return;
                 }
-
-                const relPath = String(files[0].webkitRelativePath || '');
-                const folderName = relPath.split('/')[0] || '';
-                resolve(folderName ? `browser://${folderName}` : '');
-            }, { once: true });
-
-            input.click();
+                console.error('浏览器目录选择失败:', error);
+                resolve('');
+            }
         });
     }
 
@@ -247,6 +242,148 @@ class StepManager {
             composeContents: normalizedContents,
             changed
         };
+    }
+
+    parseComposeLabels(labels) {
+        const result = {};
+        if (Array.isArray(labels)) {
+            labels.forEach((item) => {
+                const [key, ...rest] = String(item || '').split('=');
+                const k = String(key || '').trim();
+                if (!k) return;
+                result[k] = rest.join('=').trim();
+            });
+            return result;
+        }
+        if (labels && typeof labels === 'object') {
+            Object.entries(labels).forEach(([key, value]) => {
+                const k = String(key || '').trim();
+                if (!k) return;
+                result[k] = String(value ?? '').trim();
+            });
+        }
+        return result;
+    }
+
+    toPackageSegment(text) {
+        const normalized = String(text || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9._-]+/g, '-')
+            .replace(/^[._-]+|[._-]+$/g, '')
+            .replace(/-+/g, '-');
+        return normalized || 'app';
+    }
+
+    firstNonEmpty(...values) {
+        for (const value of values) {
+            const text = String(value ?? '').trim();
+            if (text) return text;
+        }
+        return '';
+    }
+
+    quickFillGenerateAppFields(composeData) {
+        if (!composeData || !composeData.services || typeof composeData.services !== 'object') {
+            return;
+        }
+
+        const appNameInput = document.getElementById('app-name');
+        const appPackageInput = document.getElementById('app-package');
+        const appVersionInput = document.getElementById('app-version');
+        const appHomepageInput = document.getElementById('app-homepage');
+        const appDescriptionInput = document.getElementById('app-description');
+        const appAuthorInput = document.getElementById('app-author');
+        if (!appNameInput || !appPackageInput || !appVersionInput || !appHomepageInput || !appDescriptionInput || !appAuthorInput) {
+            return;
+        }
+
+        const serviceEntries = Object.entries(composeData.services);
+        if (serviceEntries.length === 0) return;
+
+        const preferredEntry = serviceEntries.find(([name]) => name !== 'app') || serviceEntries[0];
+        const [serviceName, serviceConfig] = preferredEntry;
+        const labels = this.parseComposeLabels(serviceConfig?.labels);
+        const image = String(serviceConfig?.image || '').trim();
+        const imageTag = image.includes(':') ? image.split(':').pop() : '';
+        const composeName = String(composeData.name || labels['com.docker.compose.project'] || '').trim();
+
+        const inferredName = this.firstNonEmpty(
+            labels['org.opencontainers.image.title'],
+            labels['org.label-schema.name'],
+            serviceConfig?.container_name,
+            composeName,
+            serviceName
+        );
+        const inferredPackage = `cloud.lazycat.app.${this.toPackageSegment(this.firstNonEmpty(composeName, serviceName, inferredName))}`;
+        const inferredVersion = this.firstNonEmpty(
+            labels['org.opencontainers.image.version'],
+            imageTag && imageTag !== 'latest' ? imageTag : '',
+            '1.0.0'
+        );
+        const inferredHomepage = this.firstNonEmpty(
+            labels['org.opencontainers.image.url'],
+            labels['org.label-schema.url']
+        );
+        const inferredDescription = this.firstNonEmpty(
+            labels['org.opencontainers.image.description'],
+            labels['org.label-schema.description'],
+            `基于 Docker Compose 服务 ${serviceName} 自动生成`
+        );
+        const inferredAuthor = this.firstNonEmpty(
+            labels['org.opencontainers.image.authors'],
+            labels['org.label-schema.vendor']
+        );
+
+        const appPackagePlaceholder = String(appPackageInput.getAttribute('placeholder') || '').trim();
+        const shouldFill = (input) => {
+            const current = String(input.value || '').trim();
+            if (!current) return true;
+            if (input === appPackageInput && current === appPackagePlaceholder) return true;
+            if (input === appPackageInput && current === 'cloud.lazycat.app.xxx') return true;
+            if (input === appVersionInput) {
+                const defaultVersion = String(appVersionInput.defaultValue || '').trim();
+                if (defaultVersion && current === defaultVersion) return true;
+            }
+            return false;
+        };
+
+        let changed = false;
+        if (inferredName && shouldFill(appNameInput)) {
+            appNameInput.value = inferredName;
+            changed = true;
+        }
+        if (inferredPackage && shouldFill(appPackageInput)) {
+            appPackageInput.value = inferredPackage;
+            changed = true;
+        }
+        if (inferredVersion && shouldFill(appVersionInput)) {
+            appVersionInput.value = inferredVersion;
+            changed = true;
+        }
+        if (inferredHomepage && shouldFill(appHomepageInput)) {
+            appHomepageInput.value = inferredHomepage;
+            changed = true;
+        }
+        if (inferredDescription && shouldFill(appDescriptionInput)) {
+            appDescriptionInput.value = inferredDescription;
+            changed = true;
+        }
+        if (inferredAuthor && shouldFill(appAuthorInput)) {
+            appAuthorInput.value = inferredAuthor;
+            changed = true;
+        }
+
+        if (changed) {
+            localStorage.setItem('step-1-data', JSON.stringify({
+                appName: appNameInput.value,
+                appPackage: appPackageInput.value,
+                appVersion: appVersionInput.value,
+                appAuthor: appAuthorInput.value,
+                appDescription: appDescriptionInput.value,
+                appHomepage: appHomepageInput.value
+            }));
+            this.showNotification('已根据 Compose 快速填充生成应用字段', 'success');
+        }
     }
 
     // 目录选择兼容调用（兼容不同 preload API 名称）
@@ -552,11 +689,12 @@ class StepManager {
                 // 处理 icon 参数
                 if (args.icon) {
                     document.getElementById('icon-path').value = args.icon;
-                    // 更新图标预览
-                    const iconPreview = document.getElementById('icon-preview');
-                    const img = iconPreview.querySelector('img');
-                    img.src = args.icon;
-                    iconPreview.style.display = 'block';
+                    this.clearIconPreview();
+                    if (this.isLikelyImagePath(args.icon)) {
+                        this.setIconPreview(args.icon);
+                    } else {
+                        this.setIconPreview('build/icon.svg');
+                    }
                 }
             }
         } catch (error) {
@@ -608,10 +746,22 @@ class StepManager {
                 });
             }
             
-            // 文件选择按钮事件
-            bindIfExists('select-icon-btn', () => {
-                this.selectIconFile();
-            });
+            // 图标上传区域点击/键盘事件
+            const iconUploadZone = document.getElementById('icon-upload-zone');
+            if (iconUploadZone) {
+                iconUploadZone.addEventListener('click', (event) => {
+                    if (event.target && event.target.closest('#remove-icon-btn')) {
+                        return;
+                    }
+                    this.selectIconFile();
+                });
+                iconUploadZone.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        this.selectIconFile();
+                    }
+                });
+            }
             bindIfExists('select-compose-btn', () => {
                 this.selectComposeFile();
             });
@@ -643,7 +793,10 @@ class StepManager {
             });
             
             // 文件删除按钮事件
-            bindIfExists('remove-icon-btn', () => {
+            bindIfExists('remove-icon-btn', (event) => {
+                if (event && typeof event.stopPropagation === 'function') {
+                    event.stopPropagation();
+                }
                 this.removeIconFile();
             });
             
@@ -847,11 +1000,12 @@ class StepManager {
             case 3: // 资源选择
                 if (stepData.iconPath) {
                     document.getElementById('icon-path').value = stepData.iconPath;
-                    // 更新图标预览
-                    const iconPreview = document.getElementById('icon-preview');
-                    const img = iconPreview.querySelector('img');
-                    img.src = stepData.iconPath;
-                    iconPreview.style.display = 'block';
+                    this.clearIconPreview();
+                    if (this.isLikelyImagePath(stepData.iconPath)) {
+                        this.setIconPreview(stepData.iconPath);
+                    } else {
+                        this.setIconPreview('build/icon.svg');
+                    }
                 }
                 // 多个Docker Compose文件由autoLoadSavedData方法处理，不再需要这里设置单个compose-path
                 break;
@@ -1076,21 +1230,55 @@ class StepManager {
         document.getElementById('progress-text').textContent = `${this.currentStep}/${this.totalSteps}`;
         document.getElementById('progress-fill').style.width = `${progress}%`;
     }
+
+    isLikelyImagePath(filePath) {
+        const value = String(filePath || '').toLowerCase();
+        return /\.(png|jpe?g|gif|bmp|webp|svg|ico|avif)$/.test(value);
+    }
+
+    clearIconPreview() {
+        if (this.iconPreviewObjectUrl) {
+            URL.revokeObjectURL(this.iconPreviewObjectUrl);
+            this.iconPreviewObjectUrl = null;
+        }
+
+        const zone = document.getElementById('icon-upload-zone');
+        const img = document.getElementById('icon-upload-preview-img');
+        if (zone) zone.classList.remove('has-preview');
+        if (img) img.removeAttribute('src');
+    }
+
+    setIconPreview(previewSrc) {
+        const zone = document.getElementById('icon-upload-zone');
+        const img = document.getElementById('icon-upload-preview-img');
+        if (!zone || !img || !previewSrc) return;
+        img.src = previewSrc;
+        zone.classList.add('has-preview');
+    }
     
     // 选择图标文件
     async selectIconFile() {
         console.log('selectIconFile 方法被调用');
         try {
-            if (!this.hasElectronFileApi()) {
-                const files = await this.pickFilesInBrowser('image/*', false);
+            const canUseElectronPicker = !!(window.electronAPI && typeof window.electronAPI.selectFile === 'function');
+            if (!canUseElectronPicker) {
+                const files = await this.pickFilesInBrowser('*/*', false);
                 if (files.length === 0) return;
                 const file = files[0];
                 const displayPath = `browser://${file.name}`;
-                document.getElementById('icon-path').value = displayPath;
-                const iconPreview = document.getElementById('icon-preview');
-                const img = iconPreview.querySelector('img');
-                img.src = URL.createObjectURL(file);
-                iconPreview.style.display = 'block';
+                const iconPathInput = document.getElementById('icon-path');
+                if (iconPathInput) {
+                    iconPathInput.value = displayPath;
+                }
+
+                this.clearIconPreview();
+                if (file.type && file.type.startsWith('image/')) {
+                    this.iconPreviewObjectUrl = URL.createObjectURL(file);
+                    this.setIconPreview(this.iconPreviewObjectUrl);
+                } else {
+                    this.setIconPreview('build/icon.svg');
+                    this.showNotification('已选择文件（非图片文件使用默认预览）', 'info');
+                }
                 return;
             }
 
@@ -1098,7 +1286,6 @@ class StepManager {
             const result = await window.electronAPI.selectFile({
                 title: '选择图标文件',
                 filters: [
-                    { name: 'Image Files', extensions: ['png', 'jpg', 'jpeg', 'gif'] },
                     { name: 'All Files', extensions: ['*'] }
                 ],
                 properties: ['openFile']
@@ -1106,15 +1293,20 @@ class StepManager {
             
             console.log('selectFile 返回结果:', result);
             
-            if (!result.canceled && result.filePaths.length > 0) {
+            if (result && !result.canceled && Array.isArray(result.filePaths) && result.filePaths.length > 0) {
                 const filePath = result.filePaths[0];
-                document.getElementById('icon-path').value = filePath;
-                
-                // 显示图标预览
-                const iconPreview = document.getElementById('icon-preview');
-                const img = iconPreview.querySelector('img');
-                img.src = filePath;
-                iconPreview.style.display = 'block';
+                const iconPathInput = document.getElementById('icon-path');
+                if (iconPathInput) {
+                    iconPathInput.value = filePath;
+                }
+
+                this.clearIconPreview();
+                if (this.isLikelyImagePath(filePath)) {
+                    this.setIconPreview(filePath);
+                } else {
+                    this.setIconPreview('build/icon.svg');
+                    this.showNotification('已选择文件（非图片文件使用默认预览）', 'info');
+                }
             }
         } catch (error) {
             console.error('选择图标文件失败:', error);
@@ -1358,6 +1550,7 @@ class StepManager {
         this.fillEnvVars(allEnvVars);
         this.fillVolumes(allVolumes);
         this.fillPortsToRoutes(allPorts);
+        this.quickFillGenerateAppFields(composeData);
         this.ensureDefaultConfigItems();
 
         if (typeof configManager !== 'undefined' && configManager && typeof configManager.getConfigFromForm === 'function') {
@@ -1407,19 +1600,6 @@ class StepManager {
 
         if (notifySuccess) {
             this.showNotification('文件解析成功', 'success');
-        }
-    }
-    
-    // 解析单个 Docker Compose 文件
-    async parseComposeFile(filePath) {
-        try {
-            const yaml = require('yaml');
-            const fs = require('fs');
-            const content = fs.readFileSync(filePath, 'utf8');
-            return yaml.parse(content);
-        } catch (error) {
-            console.error('解析 Docker Compose 文件失败:', error);
-            throw error;
         }
     }
     
@@ -1855,8 +2035,11 @@ class StepManager {
     // 删除图标文件
     removeIconFile() {
         try {
-            document.getElementById('icon-path').value = '';
-            document.getElementById('icon-preview').style.display = 'none';
+            const iconPathInput = document.getElementById('icon-path');
+            if (iconPathInput) {
+                iconPathInput.value = '';
+            }
+            this.clearIconPreview();
             this.showNotification('图标已删除', 'success');
         } catch (error) {
             console.error('删除图标失败:', error);
@@ -2221,6 +2404,11 @@ class StepManager {
             updateProgress(3, '正在生成 manifest.yml...');
             updateProgress(4, '正在创建 content.tar...');
             updateProgress(5, '正在打包 LPK 文件...');
+            
+            // 检查是否在 Electron 环境中
+            if (!window.electronAPI || !window.electronAPI.generateLpk) {
+                throw new Error('此功能需要在 Electron 环境中运行，请使用应用程序启动而不是浏览器。');
+            }
             
             // 通过 IPC 调用主进程生成 LPK 包
             const result = await window.electronAPI.generateLpk({ config, composeData });
