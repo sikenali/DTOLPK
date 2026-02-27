@@ -194,64 +194,52 @@ class ConfigManager {
     // 将配置填充到表单
     fillFormFromConfig() {
         // 填充基本信息
-        document.getElementById('app-name').value = this.config.app.name || '';
-        document.getElementById('app-package').value = this.config.app.package || '';
-        document.getElementById('app-version').value = this.config.app.version || '';
-        document.getElementById('app-description').value = this.config.app.description || '';
-        document.getElementById('app-homepage').value = this.config.app.homepage || '';
-        document.getElementById('app-author').value = this.config.app.author || '';
+        const appName = document.getElementById('app-name');
+        if (appName) appName.value = this.config.app.name || '';
         
-        // 填充不支持的平台
-        this.fillUnsupportedPlatforms(this.config.app.unsupportedPlatforms || []);
+        const appPackage = document.getElementById('app-package');
+        if (appPackage) appPackage.value = this.config.app.package || '';
         
-        // 填充系统版本要求
-        document.getElementById('has-version-requirement').checked = this.config.app.hasVersionRequirement || false;
-        document.getElementById('min-os-version').value = this.config.app.minOsVersion || '>= 1.0.18';
+        const appVersion = document.getElementById('app-version');
+        if (appVersion) appVersion.value = this.config.app.version || '';
         
-        // 显示/隐藏版本要求字段
-        const versionField = document.getElementById('version-requirement-field');
-        versionField.style.display = this.config.app.hasVersionRequirement ? 'block' : 'none';
-        
-        // 填充应用功能
-        document.getElementById('feature-background-task').checked = this.config.features.backgroundTask || false;
-        document.getElementById('feature-multi-instance').checked = this.config.features.multiInstance || false;
-        document.getElementById('feature-public-path').checked = this.config.features.publicPath || false;
-        document.getElementById('feature-gpu-accel').checked = this.config.features.gpuAccel || false;
-        document.getElementById('feature-kvm-accel').checked = this.config.features.kvmAccel || false;
-        document.getElementById('feature-usb-accel').checked = this.config.features.usbAccel || false;
-        document.getElementById('feature-file-handler').checked = this.config.features.fileHandler || false;
+        const appDescription = document.getElementById('app-description');
+        if (appDescription) appDescription.value = this.config.app.description || '';
         
         // 填充资源选择
-        document.getElementById('icon-path').value = this.config.resources.iconPath || '';
-        // 多个Docker Compose文件由stepManager的autoLoadSavedData方法处理，不再需要这里设置单个compose-path
-        
-        // 填充镜像配置
-        document.getElementById('push-target').value = this.config.images.pushTarget || 'none';
-        document.getElementById('registry-url').value = this.config.images.registryUrl || '';
-        document.getElementById('box-name').value = this.config.images.boxName || 'default';
-        
-        // 显示/隐藏自定义仓库地址字段和盒子名称字段
-        const customRegistryField = document.getElementById('custom-registry-field');
-        const lazycatBoxField = document.getElementById('lazycat-box-field');
-        customRegistryField.style.display = this.config.images.pushTarget === 'custom' ? 'block' : 'none';
-        lazycatBoxField.style.display = this.config.images.pushTarget === 'lazycat' ? 'block' : 'none';
+        const iconPath = document.getElementById('icon-path');
+        if (iconPath) {
+            iconPath.value = this.config.resources.iconPath || '';
+            if (iconPath.value && window.stepManager && typeof window.stepManager.setIconPreview === 'function') {
+                window.stepManager.setIconPreview(iconPath.value);
+            }
+        }
         
         // 填充构建配置
-        document.getElementById('build-context').value = this.config.build.context || '.';
-        document.getElementById('dockerfile-path').value = this.config.build.dockerfile || '';
+        const dockerfilePath = document.getElementById('dockerfile-path');
+        if (dockerfilePath) dockerfilePath.value = this.config.build.dockerfile || '';
         
-        // 填充输出LPK目录和Dockerfile输出目录
-        document.getElementById('output-directory').value = this.config.output.directory || '';
-        document.getElementById('dockerfile-output-path').value = this.config.output.dockerfilePath || '';
+        // 填充输出LPK目录
+        const outputDirectory = document.getElementById('output-directory');
+        if (outputDirectory) outputDirectory.value = this.config.output.directory || '';
         
         // 填充路由配置
-        this.fillRoutes(this.config.routes || []);
+        const routesContainer = document.getElementById('routes-container');
+        if (routesContainer) {
+            this.fillRoutes(this.config.routes || []);
+        }
         
         // 填充环境变量
-        this.fillEnvVariables(this.config.advanced.envVariables || []);
+        const envVariablesContainer = document.getElementById('env-variables-container');
+        if (envVariablesContainer) {
+            this.fillEnvVariables(this.config.advanced.envVariables || []);
+        }
         
         // 填充卷挂载
-        this.fillVolumes(this.config.advanced.volumes || []);
+        const volumesContainer = document.getElementById('volumes-container');
+        if (volumesContainer) {
+            this.fillVolumes(this.config.advanced.volumes || []);
+        }
     }
     
     // 获取不支持的平台
@@ -280,18 +268,31 @@ class ConfigManager {
     getRoutes() {
         const routes = [];
         const routeItems = document.querySelectorAll('.route-item');
+        const isValidPort = (value) => {
+            const port = parseInt(String(value || '').trim(), 10);
+            return Number.isInteger(port) && port >= 1 && port <= 65535;
+        };
         
         routeItems.forEach(item => {
             const routeType = item.querySelector('.route-type').value;
             const inputs = item.querySelectorAll('.input-field');
             // 使用正确的索引：路径是第三个input-field（索引2），目标是第四个input-field（索引3）
-            const path = inputs[2]?.value || '';
-            const target = inputs[3]?.value || '';
+            let path = inputs[2]?.value || '';
+            let target = inputs[3]?.value || '';
             let protocol = 'tcp';
             
             if (routeType === 'port') {
                 const protocolSelect = item.querySelector('.port-config select');
                 protocol = protocolSelect?.value || 'tcp';
+                let portValue = String(path || '').trim();
+                let targetValue = String(target || '').trim();
+                if (!isValidPort(portValue) && isValidPort(targetValue)) {
+                    const tmp = portValue;
+                    portValue = targetValue;
+                    targetValue = tmp;
+                }
+                path = targetValue || '/';
+                target = portValue;
             }
             
             routes.push({
@@ -309,6 +310,13 @@ class ConfigManager {
     fillRoutes(routes) {
         const container = document.getElementById('routes-container');
         container.innerHTML = '';
+
+        if (!Array.isArray(routes) || routes.length === 0) {
+            if (window.stepManager && typeof window.stepManager.addRoute === 'function') {
+                window.stepManager.addRoute();
+            }
+            return;
+        }
         
         routes.forEach(route => {
             // 使用 stepManager.addRoute() 方法添加路由
@@ -320,8 +328,13 @@ class ConfigManager {
             
             // 使用正确的索引：路径是第三个input-field（索引2），目标是第四个input-field（索引3）
             const inputs = routeItem.querySelectorAll('.input-field');
-            if (inputs[2]) inputs[2].value = route.path;
-            if (inputs[3]) inputs[3].value = route.target;
+            if (route.type === 'port') {
+                if (inputs[2]) inputs[2].value = route.target || '';
+                if (inputs[3]) inputs[3].value = route.path || '/';
+            } else {
+                if (inputs[2]) inputs[2].value = route.path;
+                if (inputs[3]) inputs[3].value = route.target;
+            }
             
             if (route.type === 'port') {
                 const protocolSelect = routeItem.querySelector('.port-config select');
@@ -357,6 +370,13 @@ class ConfigManager {
     fillEnvVariables(envVariables) {
         const container = document.getElementById('env-variables-container');
         container.innerHTML = '';
+
+        if (!Array.isArray(envVariables) || envVariables.length === 0) {
+            if (window.stepManager && typeof window.stepManager.addEnvVariable === 'function') {
+                window.stepManager.addEnvVariable();
+            }
+            return;
+        }
         
         envVariables.forEach(env => {
             // 使用 stepManager.addEnvVariable() 方法添加环境变量
@@ -390,6 +410,13 @@ class ConfigManager {
     fillVolumes(volumes) {
         const container = document.getElementById('volumes-container');
         container.innerHTML = '';
+
+        if (!Array.isArray(volumes) || volumes.length === 0) {
+            if (window.stepManager && typeof window.stepManager.addVolume === 'function') {
+                window.stepManager.addVolume();
+            }
+            return;
+        }
         
         volumes.forEach(volume => {
             // 使用 stepManager.addVolume() 方法添加卷挂载

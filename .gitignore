@@ -1,0 +1,15 @@
+node_modules/
+
+.tmp-*/
+.tmp*.js
+*.patch
+fix-encoding.js
+
+dist/win-unpacked/
+dist/builder-debug.yml
+dist/*.blockmap
+dist/*.exe
+dist/*.dmg
+dist/*.AppImage
+dist/*.rpm
+dist/*.deb

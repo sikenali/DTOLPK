@@ -1,4 +1,4 @@
-// 步骤管理模块
+﻿// 步骤管理模块
 class StepManager {
     constructor() {
         this.currentStep = 1;
@@ -23,9 +23,11 @@ class StepManager {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
                 this.bindEvents();
+                this.ensureDefaultConfigItems();
             });
         } else {
             this.bindEvents();
+            this.ensureDefaultConfigItems();
         }
     }
     
@@ -35,12 +37,29 @@ class StepManager {
             // 加载多个 Docker Compose 文件数据
             const savedComposePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
             const savedComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
-            
-            if (savedComposePaths.length > 0) {
+            const normalizedComposeStorage = this.normalizeComposeStorage(savedComposePaths, savedComposeContents);
+
+            if (normalizedComposeStorage.changed) {
+                localStorage.setItem('composePaths', JSON.stringify(normalizedComposeStorage.composePaths));
+                localStorage.setItem('composeContents', JSON.stringify(normalizedComposeStorage.composeContents));
+            }
+             
+            if (normalizedComposeStorage.composePaths.length > 0) {
                 // 显示文件列表
-                this.displayComposeFilesList(savedComposePaths, savedComposeContents);
-                // 自动解析第一个 Docker Compose 文件
-                this.autoParseComposeFile(savedComposePaths[0]);
+                this.displayComposeFilesList(normalizedComposeStorage.composePaths, normalizedComposeStorage.composeContents);
+                const firstComposePath = normalizedComposeStorage.composePaths[0];
+                const firstComposeContent = String(normalizedComposeStorage.composeContents[firstComposePath] || '');
+                const composePathInput = document.getElementById('compose-path');
+                const composeContentInput = document.getElementById('compose-content');
+                if (composePathInput) composePathInput.value = firstComposePath;
+                if (composeContentInput) composeContentInput.value = firstComposeContent;
+
+                // 自动解析第一个 Docker Compose 文件/内容
+                if (firstComposeContent.trim()) {
+                    this.autoParseComposeContent(firstComposeContent, true);
+                } else {
+                    this.autoParseComposeFile(firstComposePath);
+                }
             }
             
             // 加载 Dockerfile 数据
@@ -53,13 +72,266 @@ class StepManager {
             
             // 监听文件路径输入框变化，自动保存和加载文件内容
             this.bindFilePathChangeEvents();
+            this.ensureDefaultConfigItems();
         } catch (error) {
             console.error('自动加载保存的数据失败:', error);
+            this.ensureDefaultConfigItems();
         }
+    }
+
+    // 确保路由、环境变量、卷挂载默认至少显示一项
+    ensureDefaultConfigItems() {
+        const routesContainer = document.getElementById('routes-container');
+        if (routesContainer && routesContainer.querySelectorAll('.route-item').length === 0) {
+            this.addRoute();
+        }
+
+        const envContainer = document.getElementById('env-variables-container');
+        if (envContainer && envContainer.querySelectorAll('.env-item').length === 0) {
+            this.addEnvVariable();
+        }
+
+        const volumesContainer = document.getElementById('volumes-container');
+        if (volumesContainer && volumesContainer.querySelectorAll('.volume-item').length === 0) {
+            this.addVolume();
+        }
+    }
+
+    isValidPortValue(value) {
+        const port = parseInt(String(value || '').trim(), 10);
+        return Number.isInteger(port) && port >= 1 && port <= 65535;
+    }
+
+    readRoutePathTarget(routeType, inputs) {
+        let path = String(inputs[2]?.value || '');
+        let target = String(inputs[3]?.value || '');
+
+        if (routeType === 'port') {
+            let portValue = path.trim();
+            let targetValue = target.trim();
+
+            // 兼容旧布局（端口号写在第4个输入）
+            if (!this.isValidPortValue(portValue) && this.isValidPortValue(targetValue)) {
+                const tmp = portValue;
+                portValue = targetValue;
+                targetValue = tmp;
+            }
+
+            return {
+                path: targetValue || '/',
+                target: portValue
+            };
+        }
+
+        return { path, target };
+    }
+
+    writeRoutePathTarget(routeType, inputs, path, target) {
+        if (!inputs || inputs.length < 4) return;
+
+        if (routeType === 'port') {
+            // 新布局：第3个输入=端口号，第4个输入=目标
+            if (inputs[2]) inputs[2].value = target ?? '';
+            if (inputs[3]) inputs[3].value = path || '/';
+            return;
+        }
+
+        if (inputs[2]) inputs[2].value = path ?? '';
+        if (inputs[3]) inputs[3].value = target ?? '';
+    }
+
+    // 当前是否可用 Electron 文件 API
+    hasElectronFileApi() {
+        return !!(window.electronAPI
+            && typeof window.electronAPI.selectFile === 'function'
+            && typeof window.electronAPI.readFile === 'function');
+    }
+
+    // 浏览器环境文件选择回退
+    pickFilesInBrowser(accept, multiple = false) {
+        return new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = accept || '*/*';
+            input.multiple = multiple;
+            input.style.display = 'none';
+            document.body.appendChild(input);
+
+            input.addEventListener('change', () => {
+                const files = Array.from(input.files || []);
+                document.body.removeChild(input);
+                resolve(files);
+            }, { once: true });
+
+            input.click();
+        });
+    }
+
+    // 浏览器环境目录选择回退
+    pickDirectoryInBrowser() {
+        return new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.setAttribute('webkitdirectory', '');
+            input.setAttribute('directory', '');
+            input.multiple = true;
+            input.style.display = 'none';
+            document.body.appendChild(input);
+
+            input.addEventListener('change', () => {
+                const files = Array.from(input.files || []);
+                document.body.removeChild(input);
+                if (files.length === 0) {
+                    resolve('');
+                    return;
+                }
+
+                const relPath = String(files[0].webkitRelativePath || '');
+                const folderName = relPath.split('/')[0] || '';
+                resolve(folderName ? `browser://${folderName}` : '');
+            }, { once: true });
+
+            input.click();
+        });
+    }
+
+    normalizeBrowserComposePath(filePath) {
+        const value = String(filePath || '').trim();
+        if (!value.startsWith('browser://')) return value;
+        const hashIndex = value.indexOf('#');
+        return hashIndex >= 0 ? value.slice(0, hashIndex) : value;
+    }
+
+    normalizeComposeStorage(composePaths, composeContents) {
+        const paths = Array.isArray(composePaths) ? composePaths : [];
+        const contents = (composeContents && typeof composeContents === 'object') ? composeContents : {};
+        const normalizedPaths = [];
+        const normalizedContents = {};
+        const seen = new Set();
+        let changed = false;
+
+        for (const originalPath of paths) {
+            const normalizedPath = this.normalizeBrowserComposePath(originalPath);
+            if (normalizedPath !== originalPath) changed = true;
+
+            if (!seen.has(normalizedPath)) {
+                seen.add(normalizedPath);
+                normalizedPaths.push(normalizedPath);
+            } else {
+                changed = true;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(contents, originalPath)) {
+                normalizedContents[normalizedPath] = contents[originalPath];
+            } else if (Object.prototype.hasOwnProperty.call(contents, normalizedPath)) {
+                normalizedContents[normalizedPath] = contents[normalizedPath];
+            }
+        }
+
+        for (const [key, value] of Object.entries(contents)) {
+            const normalizedKey = this.normalizeBrowserComposePath(key);
+            if (normalizedKey !== key) changed = true;
+
+            if (!seen.has(normalizedKey)) {
+                seen.add(normalizedKey);
+                normalizedPaths.push(normalizedKey);
+            }
+
+            if (!Object.prototype.hasOwnProperty.call(normalizedContents, normalizedKey)) {
+                normalizedContents[normalizedKey] = value;
+            }
+        }
+
+        return {
+            composePaths: normalizedPaths,
+            composeContents: normalizedContents,
+            changed
+        };
+    }
+
+    // 目录选择兼容调用（兼容不同 preload API 名称）
+    async pickDirectoryInElectron(title) {
+        if (!window.electronAPI) return null;
+
+        if (typeof window.electronAPI.selectDirectory === 'function') {
+            return window.electronAPI.selectDirectory({ title });
+        }
+
+        const fallbackOptions = {
+            title,
+            properties: ['openDirectory']
+        };
+
+        if (typeof window.electronAPI.selectFile === 'function') {
+            return window.electronAPI.selectFile(fallbackOptions);
+        }
+
+        if (typeof window.electronAPI.showOpenDialog === 'function') {
+            return window.electronAPI.showOpenDialog(fallbackOptions);
+        }
+
+        return null;
+    }
+
+    extractSelectedPath(dialogResult) {
+        if (!dialogResult || dialogResult.canceled) return '';
+
+        if (Array.isArray(dialogResult.filePaths) && dialogResult.filePaths.length > 0) {
+            return dialogResult.filePaths[0];
+        }
+
+        if (Array.isArray(dialogResult.paths) && dialogResult.paths.length > 0) {
+            return dialogResult.paths[0];
+        }
+
+        return '';
     }
     
     // 绑定文件路径输入框变化事件
     bindFilePathChangeEvents() {
+        // 监听 Docker Compose 文件路径输入框变化
+        const composePathInput = document.getElementById('compose-path');
+        if (composePathInput) {
+            composePathInput.addEventListener('change', async (e) => {
+                const filePath = String(e.target.value || '').trim();
+                await this.loadAndSaveFileContent(filePath, 'compose');
+            });
+
+            composePathInput.addEventListener('input', async (e) => {
+                const filePath = String(e.target.value || '').trim();
+                if (e.type === 'input' && e.inputType !== 'insertFromPaste') {
+                    return;
+                }
+                await this.loadAndSaveFileContent(filePath, 'compose');
+            });
+        }
+
+        // 监听 Docker Compose 内容变化，自动解析并填充配置
+        const composeContentInput = document.getElementById('compose-content');
+        if (composeContentInput) {
+            composeContentInput.addEventListener('input', (e) => {
+                const content = String(e.target.value || '');
+                const composePathInput = document.getElementById('compose-path');
+                const rawComposePath = String(composePathInput?.value || '').trim();
+                const composePath = this.normalizeBrowserComposePath(rawComposePath) || '__inline_compose__';
+                const savedComposePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
+                const savedComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
+
+                if (composePathInput && composePathInput.value !== composePath) {
+                    composePathInput.value = composePath;
+                }
+
+                if (!savedComposePaths.includes(composePath)) {
+                    savedComposePaths.unshift(composePath);
+                }
+                savedComposeContents[composePath] = content;
+                localStorage.setItem('composePaths', JSON.stringify(savedComposePaths));
+                localStorage.setItem('composeContents', JSON.stringify(savedComposeContents));
+
+                this.scheduleComposeContentAutoParse(content);
+            });
+        }
+
         // 监听 Dockerfile 文件路径输入框变化
         const dockerfilePathInput = document.getElementById('dockerfile-path');
         if (dockerfilePathInput) {
@@ -92,6 +364,20 @@ class StepManager {
             });
         }
     }
+
+    scheduleComposeContentAutoParse(content, delay = 200) {
+        if (this.composeContentParseTimer) {
+            clearTimeout(this.composeContentParseTimer);
+        }
+        this.composeContentParseTimer = setTimeout(() => {
+            const trimmed = String(content || '').trim();
+            if (!trimmed) {
+                this.ensureDefaultConfigItems();
+                return;
+            }
+            this.autoParseComposeContent(trimmed, true);
+        }, delay);
+    }
     
     // 显示 Docker Compose 文件列表
     displayComposeFilesList(composePaths, composeContents) {
@@ -109,7 +395,7 @@ class StepManager {
             // 文件路径显示
             const filePathSpan = document.createElement('span');
             filePathSpan.className = 'flex-1 text-sm font-medium truncate';
-            filePathSpan.textContent = filePath;
+            filePathSpan.textContent = this.normalizeBrowserComposePath(filePath);
             
             // 刷新按钮
             const refreshBtn = document.createElement('button');
@@ -149,18 +435,24 @@ class StepManager {
     // 根据文件路径删除 Docker Compose 文件
     removeComposeFileByPath(filePath) {
         try {
+            const normalizedFilePath = this.normalizeBrowserComposePath(filePath);
+
             // 获取现有文件列表
             const savedComposePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
             const savedComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
             
             // 找到文件的索引
-            const index = savedComposePaths.indexOf(filePath);
+            let index = savedComposePaths.indexOf(normalizedFilePath);
+            if (index === -1) {
+                index = savedComposePaths.indexOf(filePath);
+            }
             if (index === -1) {
                 throw new Error('文件不存在');
             }
-            
+             
             // 删除文件
             savedComposePaths.splice(index, 1);
+            delete savedComposeContents[normalizedFilePath];
             delete savedComposeContents[filePath];
             
             // 保存到 localStorage
@@ -203,6 +495,10 @@ class StepManager {
             if (!filePath) {
                 return;
             }
+
+            if (!window.electronAPI || typeof window.electronAPI.readFile !== 'function') {
+                return;
+            }
             
             // 检查文件是否存在
             const fs = require('fs');
@@ -234,6 +530,9 @@ class StepManager {
     // 处理命令行参数
     handleCommandLineArgs() {
         try {
+            if (!window.electronAPI || typeof window.electronAPI.getCommandLineArgs !== 'function') {
+                return;
+            }
             // 从 electronAPI 获取命令行参数
             const args = window.electronAPI.getCommandLineArgs();
             
@@ -268,6 +567,13 @@ class StepManager {
     bindEvents() {
         try {
             console.log('开始绑定事件监听器...');
+
+            const bindIfExists = (id, handler) => {
+                const el = document.getElementById(id);
+                if (!el) return false;
+                el.addEventListener('click', handler);
+                return true;
+            };
             
             // 步骤导航点击事件 - 使用事件委托，绑定在父元素上，确保事件监听器始终有效
             const stepsContainer = document.querySelector('.sidebar ul');
@@ -280,8 +586,6 @@ class StepManager {
                         this.goToStep(step);
                     }
                 });
-            } else {
-                console.error('未找到步骤导航容器');
             }
             
             // 系统版本要求复选框事件
@@ -291,8 +595,6 @@ class StepManager {
                     const versionField = document.getElementById('version-requirement-field');
                     versionField.style.display = e.target.checked ? 'block' : 'none';
                 });
-            } else {
-                console.error('未找到 has-version-requirement 元素');
             }
             
             // 镜像推送目标选择事件
@@ -304,124 +606,66 @@ class StepManager {
                     customRegistryField.style.display = e.target.value === 'custom' ? 'block' : 'none';
                     lazycatBoxField.style.display = e.target.value === 'lazycat' ? 'block' : 'none';
                 });
-            } else {
-                console.error('未找到 push-target 元素');
             }
             
             // 文件选择按钮事件
-            const selectIconBtn = document.getElementById('select-icon-btn');
-            if (selectIconBtn) {
-                selectIconBtn.addEventListener('click', () => {
-                    this.selectIconFile();
-                });
-            } else {
-                console.error('未找到 select-icon-btn 元素');
-            }
-            
-            const selectComposeBtn = document.getElementById('select-compose-btn');
-            if (selectComposeBtn) {
-                selectComposeBtn.addEventListener('click', () => {
-                    this.selectComposeFile();
-                });
-            } else {
-                console.error('未找到 select-compose-btn 元素');
-            }
-            
-            const selectOutputDirBtn = document.getElementById('select-output-dir-btn');
-            if (selectOutputDirBtn) {
-                selectOutputDirBtn.addEventListener('click', () => {
-                    this.selectOutputDirectory();
-                });
-            } else {
-                console.error('未找到 select-output-dir-btn 元素');
-            }
-            
-            const selectDockerfileBtn = document.getElementById('select-dockerfile-btn');
-            if (selectDockerfileBtn) {
-                selectDockerfileBtn.addEventListener('click', () => {
-                    this.selectDockerfile();
-                });
-            } else {
-                console.error('未找到 select-dockerfile-btn 元素');
-            }
-            
-            const selectDockerfileOutputBtn = document.getElementById('select-dockerfile-output-btn');
-            if (selectDockerfileOutputBtn) {
-                selectDockerfileOutputBtn.addEventListener('click', () => {
-                    this.selectDockerfileOutputDirectory();
-                });
-            } else {
-                console.error('未找到 select-dockerfile-output-btn 元素');
-            }
+            bindIfExists('select-icon-btn', () => {
+                this.selectIconFile();
+            });
+            bindIfExists('select-compose-btn', () => {
+                this.selectComposeFile();
+            });
+            bindIfExists('clear-compose-btn', () => {
+                this.clearComposeSelection();
+            });
+            bindIfExists('select-output-dir-btn', () => {
+                this.selectOutputDirectory();
+            });
+            bindIfExists('select-output-directory-btn', () => {
+                this.selectOutputDirectory();
+            });
+            bindIfExists('select-dockerfile-btn', () => {
+                this.selectDockerfile();
+            });
+            bindIfExists('clear-dockerfile-btn', () => {
+                this.clearDockerfileSelection();
+            });
+            bindIfExists('select-dockerfile-output-btn', () => {
+                this.selectDockerfileOutputDirectory();
+            });
             
             // 文件刷新按钮事件
-            const refreshDockerfileBtn = document.getElementById('refresh-dockerfile-btn');
-            if (refreshDockerfileBtn) {
-                refreshDockerfileBtn.addEventListener('click', () => {
-                    this.refreshDockerfile();
-                });
-            } else {
-                console.error('未找到 refresh-dockerfile-btn 元素');
-            }
-            
-            const refreshComposeBtn = document.getElementById('refresh-compose-btn');
-            if (refreshComposeBtn) {
-                refreshComposeBtn.addEventListener('click', () => {
-                    this.refreshComposeFile();
-                });
-            } else {
-                console.error('未找到 refresh-compose-btn 元素');
-            }
+            bindIfExists('refresh-dockerfile-btn', () => {
+                this.refreshDockerfile();
+            });
+            bindIfExists('refresh-compose-btn', () => {
+                this.refreshComposeFile();
+            });
             
             // 文件删除按钮事件
-            const removeIconBtn = document.getElementById('remove-icon-btn');
-            if (removeIconBtn) {
-                removeIconBtn.addEventListener('click', () => {
-                    this.removeIconFile();
-                });
-            } else {
-                console.error('未找到 remove-icon-btn 元素');
-            }
+            bindIfExists('remove-icon-btn', () => {
+                this.removeIconFile();
+            });
             
             // 添加路由按钮事件
-            const addRouteBtn = document.getElementById('add-route-btn');
-            if (addRouteBtn) {
-                addRouteBtn.addEventListener('click', () => {
-                    this.addRoute();
-                });
-            } else {
-                console.error('未找到 add-route-btn 元素');
-            }
+            bindIfExists('add-route-btn', () => {
+                this.addRoute();
+            });
             
             // 添加环境变量按钮事件
-            const addEnvBtn = document.getElementById('add-env-btn');
-            if (addEnvBtn) {
-                addEnvBtn.addEventListener('click', () => {
-                    this.addEnvVariable();
-                });
-            } else {
-                console.error('未找到 add-env-btn 元素');
-            }
+            bindIfExists('add-env-btn', () => {
+                this.addEnvVariable();
+            });
             
             // 添加卷挂载按钮事件
-            const addVolumeBtn = document.getElementById('add-volume-btn');
-            if (addVolumeBtn) {
-                addVolumeBtn.addEventListener('click', () => {
-                    this.addVolume();
-                });
-            } else {
-                console.error('未找到 add-volume-btn 元素');
-            }
+            bindIfExists('add-volume-btn', () => {
+                this.addVolume();
+            });
             
             // 开始转换按钮事件
-            const startConvertBtn = document.getElementById('start-convert-btn');
-            if (startConvertBtn) {
-                startConvertBtn.addEventListener('click', () => {
-                    this.startConversion();
-                });
-            } else {
-                console.error('未找到 start-convert-btn 元素');
-            }
+            bindIfExists('start-convert-btn', () => {
+                this.startConversion();
+            });
             
             console.log('事件监听器绑定完成');
         } catch (error) {
@@ -501,9 +745,9 @@ class StepManager {
                     const routeType = routeItem.querySelector('.route-type').value;
                     const protocol = routeItem.querySelector('.port-config select')?.value || '';
                     const inputs = routeItem.querySelectorAll('.input-field');
-                    // 正确的索引：路径是第三个input-field（索引2），目标是第四个input-field（索引3）
-                    const path = inputs[2]?.value || '';
-                    const target = inputs[3]?.value || '';
+                    const routeValues = this.readRoutePathTarget(routeType, inputs);
+                    const path = routeValues.path;
+                    const target = routeValues.target;
                     
                     routes.push({
                         id: routeId,
@@ -631,8 +875,7 @@ class StepManager {
                         
                         // 设置路径和目标 - 使用正确的索引
                         const inputs = lastRouteItem.querySelectorAll('.input-field');
-                        if (inputs[2]) inputs[2].value = route.path;
-                        if (inputs[3]) inputs[3].value = route.target;
+                        this.writeRoutePathTarget(route.type, inputs, route.path, route.target);
                         
                         // 更新路由配置显示
                         this.toggleRouteConfig(routeTypeSelect, lastRouteItem);
@@ -838,6 +1081,19 @@ class StepManager {
     async selectIconFile() {
         console.log('selectIconFile 方法被调用');
         try {
+            if (!this.hasElectronFileApi()) {
+                const files = await this.pickFilesInBrowser('image/*', false);
+                if (files.length === 0) return;
+                const file = files[0];
+                const displayPath = `browser://${file.name}`;
+                document.getElementById('icon-path').value = displayPath;
+                const iconPreview = document.getElementById('icon-preview');
+                const img = iconPreview.querySelector('img');
+                img.src = URL.createObjectURL(file);
+                iconPreview.style.display = 'block';
+                return;
+            }
+
             console.log('调用 window.electronAPI.selectFile');
             const result = await window.electronAPI.selectFile({
                 title: '选择图标文件',
@@ -870,6 +1126,46 @@ class StepManager {
     async selectComposeFile() {
         console.log('selectComposeFile 方法被调用');
         try {
+            if (!this.hasElectronFileApi()) {
+                const files = await this.pickFilesInBrowser('.yml,.yaml', true);
+                if (files.length === 0) return;
+
+                const existingComposePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
+                const existingComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
+                const normalizedComposeStorage = this.normalizeComposeStorage(existingComposePaths, existingComposeContents);
+                const savedComposePaths = normalizedComposeStorage.composePaths;
+                const savedComposeContents = normalizedComposeStorage.composeContents;
+
+                let firstPath = '';
+                let firstContent = '';
+                for (const file of files) {
+                    const filePath = `browser://${file.name}`;
+                    const content = await file.text();
+                    if (!savedComposePaths.includes(filePath)) {
+                        savedComposePaths.push(filePath);
+                    }
+                    savedComposeContents[filePath] = content;
+
+                    if (!firstPath) {
+                        firstPath = filePath;
+                        firstContent = content;
+                    }
+                }
+
+                localStorage.setItem('composePaths', JSON.stringify(savedComposePaths));
+                localStorage.setItem('composeContents', JSON.stringify(savedComposeContents));
+                this.displayComposeFilesList(savedComposePaths, savedComposeContents);
+
+                const composePathInput = document.getElementById('compose-path');
+                const composeContentInput = document.getElementById('compose-content');
+                if (composePathInput) composePathInput.value = firstPath;
+                if (composeContentInput) composeContentInput.value = firstContent;
+
+                this.showNotification('已在 Web 预览模式加载 Compose 文件内容', 'success');
+                await this.autoParseComposeContent(firstContent, true);
+                return;
+            }
+
             console.log('调用 window.electronAPI.selectFile');
             const result = await window.electronAPI.selectFile({
                 title: '选择 Docker Compose 或 YAML 文件',
@@ -926,6 +1222,29 @@ class StepManager {
             throw error;
         }
     }
+
+    // 清除 Compose 选择和内容
+    clearComposeSelection() {
+        try {
+            const composePathInput = document.getElementById('compose-path');
+            const composeContentInput = document.getElementById('compose-content');
+            const composeList = document.getElementById('compose-files-list');
+
+            if (composePathInput) composePathInput.value = '';
+            if (composeContentInput) composeContentInput.value = '';
+            if (composeList) composeList.innerHTML = '';
+
+            localStorage.removeItem('composePath');
+            localStorage.removeItem('composeContent');
+            localStorage.removeItem('composePaths');
+            localStorage.removeItem('composeContents');
+
+            this.showNotification('Docker Compose 配置已清除', 'success');
+        } catch (error) {
+            console.error('清除 Docker Compose 配置失败:', error);
+            this.showNotification('清除 Docker Compose 配置失败', 'error');
+        }
+    }
     
     // 刷新 Docker Compose 文件内容
     async refreshComposeFile(filePath) {
@@ -935,17 +1254,33 @@ class StepManager {
                 alert('请先选择 Docker Compose 文件');
                 return;
             }
-            
+            const normalizedFilePath = this.normalizeBrowserComposePath(filePath);
+            const targetPath = normalizedFilePath || filePath;
+
+            if (!window.electronAPI || typeof window.electronAPI.readFile !== 'function') {
+                const savedComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
+                if (savedComposeContents[targetPath]) {
+                    document.getElementById('compose-content').value = savedComposeContents[targetPath];
+                    this.showNotification('Web 预览模式不支持从磁盘刷新，已加载缓存内容', 'info');
+                    return;
+                }
+                alert('当前环境不支持刷新该文件');
+                return;
+            }
+             
             // 读取文件内容
-            const readResult = await window.electronAPI.readFile(filePath);
+            const readResult = await window.electronAPI.readFile(targetPath);
             if (readResult.success) {
                 // 获取现有文件列表
                 const savedComposePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
                 const savedComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
-                
+                 
                 // 更新文件内容
-                savedComposeContents[filePath] = readResult.content;
-                
+                savedComposeContents[targetPath] = readResult.content;
+                if (targetPath !== filePath) {
+                    delete savedComposeContents[filePath];
+                }
+                 
                 // 保存到 localStorage
                 localStorage.setItem('composeContents', JSON.stringify(savedComposeContents));
                 
@@ -954,9 +1289,9 @@ class StepManager {
                 
                 // 显示文件内容
                 document.getElementById('compose-content').value = readResult.content;
-                
+                 
                 // 自动解析 Docker Compose 文件，提取环境变量、卷挂载和端口信息
-                await this.autoParseComposeFile(filePath);
+                await this.autoParseComposeFile(targetPath);
                 this.showNotification('Docker Compose 文件内容已刷新', 'success');
             }
         } catch (error) {
@@ -972,97 +1307,106 @@ class StepManager {
         try {
             // 解析单个 Docker Compose 文件
             const composeData = await this.parseComposeFile(filePath);
-            
-            if (!composeData.services) {
-                return;
-            }
-            
-            // 提取所有服务的环境变量、卷挂载和端口信息
-            const allEnvVars = [];
-            const allVolumes = [];
-            const allPorts = [];
-            
-            for (const [serviceName, service] of Object.entries(composeData.services)) {
-                // 提取环境变量
-                if (service.environment) {
-                    const envVars = this.extractEnvVars(service.environment);
-                    allEnvVars.push(...envVars);
-                }
-                
-                // 提取卷挂载
-                if (service.volumes) {
-                    const volumes = this.extractVolumes(service.volumes);
-                    allVolumes.push(...volumes);
-                }
-                
-                // 提取端口信息，传递服务名称
-                if (service.ports) {
-                    const ports = this.extractPorts(service.ports, serviceName);
-                    allPorts.push(...ports);
-                }
-            }
-            
-            // 填充环境变量
-            this.fillEnvVars(allEnvVars);
-            
-            // 填充卷挂载
-            this.fillVolumes(allVolumes);
-            
-            // 填充端口信息到路由配置
-            this.fillPortsToRoutes(allPorts);
-            
-            // 保存自动解析的数据到配置中
-            configManager.getConfigFromForm();
-            
-            // 保存所有相关步骤的数据到localStorage
-            // 直接保存路由配置，不修改currentStep
-            const routesContainer = document.getElementById('routes-container');
-            const routeItems = routesContainer.querySelectorAll('.route-item');
-            const routes = [];
-            routeItems.forEach(routeItem => {
-                const routeId = routeItem.dataset.routeId;
-                const routeType = routeItem.querySelector('.route-type').value;
-                const protocol = routeItem.querySelector('.port-config select')?.value || '';
-                const inputs = routeItem.querySelectorAll('.input-field');
-                const path = inputs[2]?.value || '';
-                const target = inputs[3]?.value || '';
-                
-                routes.push({
-                    id: routeId,
-                    type: routeType,
-                    protocol: protocol,
-                    path: path,
-                    target: target
-                });
-            });
-            localStorage.setItem('step-4-data', JSON.stringify({ routes }));
-            
-            // 直接保存高级配置，不修改currentStep
-            const envVariables = [];
-            document.querySelectorAll('.env-item').forEach(envItem => {
-                const name = envItem.querySelectorAll('.input-field')[0]?.value || '';
-                const value = envItem.querySelectorAll('.input-field')[1]?.value || '';
-                if (name || value) {
-                    envVariables.push({ name, value });
-                }
-            });
-            
-            const volumes = [];
-            document.querySelectorAll('.volume-item').forEach(volumeItem => {
-                const source = volumeItem.querySelectorAll('.input-field')[0]?.value || '';
-                const target = volumeItem.querySelectorAll('.input-field')[1]?.value || '';
-                if (source || target) {
-                    volumes.push({ source, target });
-                }
-            });
-            localStorage.setItem('step-7-data', JSON.stringify({ envVariables, volumes }));
-            
-            // 显示成功消息
-            this.showNotification('文件解析成功', 'success');
+            await this.applyComposeDataToForms(composeData);
         } catch (error) {
             console.error('自动解析 Docker Compose 文件失败:', error);
             // 显示错误消息
             this.showNotification('自动解析 Docker Compose 文件失败: ' + error.message, 'error');
+        }
+    }
+
+    async autoParseComposeContent(content, silent = false) {
+        try {
+            const composeData = await this.parseComposeContent(content);
+            await this.applyComposeDataToForms(composeData, { notifySuccess: !silent });
+        } catch (error) {
+            if (!silent) {
+                console.error('自动解析 Docker Compose 内容失败:', error);
+                this.showNotification('自动解析 Docker Compose 内容失败: ' + error.message, 'error');
+            }
+        }
+    }
+
+    async applyComposeDataToForms(composeData, options = {}) {
+        const { notifySuccess = true } = options;
+        if (!composeData || !composeData.services) {
+            this.ensureDefaultConfigItems();
+            return;
+        }
+
+        const allEnvVars = [];
+        const allVolumes = [];
+        const allPorts = [];
+
+        for (const [serviceName, service] of Object.entries(composeData.services)) {
+            if (service.environment) {
+                const envVars = this.extractEnvVars(service.environment);
+                allEnvVars.push(...envVars);
+            }
+
+            if (service.volumes) {
+                const volumes = this.extractVolumes(service.volumes);
+                allVolumes.push(...volumes);
+            }
+
+            if (service.ports) {
+                const ports = this.extractPorts(service.ports, serviceName);
+                allPorts.push(...ports);
+            }
+        }
+
+        this.fillEnvVars(allEnvVars);
+        this.fillVolumes(allVolumes);
+        this.fillPortsToRoutes(allPorts);
+        this.ensureDefaultConfigItems();
+
+        if (typeof configManager !== 'undefined' && configManager && typeof configManager.getConfigFromForm === 'function') {
+            configManager.getConfigFromForm();
+        }
+
+        const routesContainer = document.getElementById('routes-container');
+        const routeItems = routesContainer.querySelectorAll('.route-item');
+        const routes = [];
+        routeItems.forEach(routeItem => {
+            const routeId = routeItem.dataset.routeId;
+            const routeType = routeItem.querySelector('.route-type').value;
+            const protocol = routeItem.querySelector('.port-config select')?.value || '';
+            const inputs = routeItem.querySelectorAll('.input-field');
+            const routeValues = this.readRoutePathTarget(routeType, inputs);
+            const path = routeValues.path;
+            const target = routeValues.target;
+
+            routes.push({
+                id: routeId,
+                type: routeType,
+                protocol: protocol,
+                path: path,
+                target: target
+            });
+        });
+        localStorage.setItem('step-4-data', JSON.stringify({ routes }));
+
+        const envVariables = [];
+        document.querySelectorAll('.env-item').forEach(envItem => {
+            const name = envItem.querySelectorAll('.input-field')[0]?.value || '';
+            const value = envItem.querySelectorAll('.input-field')[1]?.value || '';
+            if (name || value) {
+                envVariables.push({ name, value });
+            }
+        });
+
+        const volumes = [];
+        document.querySelectorAll('.volume-item').forEach(volumeItem => {
+            const source = volumeItem.querySelectorAll('.input-field')[0]?.value || '';
+            const target = volumeItem.querySelectorAll('.input-field')[1]?.value || '';
+            if (source || target) {
+                volumes.push({ source, target });
+            }
+        });
+        localStorage.setItem('step-7-data', JSON.stringify({ envVariables, volumes }));
+
+        if (notifySuccess) {
+            this.showNotification('文件解析成功', 'success');
         }
     }
     
@@ -1084,10 +1428,16 @@ class StepManager {
         try {
             // 获取所有保存的 Docker Compose 文件路径
             const savedComposePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
+            const savedComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
+            const normalizedComposeStorage = this.normalizeComposeStorage(savedComposePaths, savedComposeContents);
+            if (normalizedComposeStorage.changed) {
+                localStorage.setItem('composePaths', JSON.stringify(normalizedComposeStorage.composePaths));
+                localStorage.setItem('composeContents', JSON.stringify(normalizedComposeStorage.composeContents));
+            }
             let combinedData = { services: {} };
-            
+             
             // 解析每个文件并合并数据
-            for (const filePath of savedComposePaths) {
+            for (const filePath of normalizedComposeStorage.composePaths) {
                 const composeData = await this.parseComposeFile(filePath);
                 if (composeData.services) {
                     // 合并服务配置
@@ -1151,34 +1501,75 @@ class StepManager {
     // 提取端口信息
     extractPorts(ports, serviceName) {
         const extractedPorts = [];
+        const normalizePort = (value) => {
+            let text = String(value ?? '').trim();
+            if (!text) return '';
+            if (text.includes('-')) {
+                text = text.split('-')[0].trim();
+            }
+            return text;
+        };
+        const splitPortMapping = (mapping) => {
+            const parts = [];
+            let current = '';
+            let bracketDepth = 0;
+            for (const char of String(mapping || '')) {
+                if (char === '[') bracketDepth += 1;
+                if (char === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+                if (char === ':' && bracketDepth === 0) {
+                    parts.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            parts.push(current);
+            return parts.map((item) => item.trim()).filter(Boolean);
+        };
         
         for (const port of ports) {
             let hostPort, containerPort, proto = 'tcp';
             
+            if (typeof port === 'number') {
+                // 数字格式：3000
+                containerPort = String(port);
+                hostPort = containerPort;
+            } else
             if (typeof port === 'string') {
-                // 字符串格式："hostPort:containerPort" 或 "containerPort" 或 "hostPort:containerPort/proto"
-                const parts = port.split(':');
+                // 字符串格式："hostPort:containerPort" / "containerPort" / "ip:hostPort:containerPort/proto"
+                const raw = String(port || '').trim();
+                if (!raw) continue;
+                const [mapping, protocolPart] = raw.split('/');
+                proto = (protocolPart || 'tcp').toLowerCase();
+                const parts = splitPortMapping(mapping);
                 
                 if (parts.length === 1) {
                     // 只有容器端口
-                    containerPort = parts[0].split('/')[0];
-                    proto = parts[0].split('/')[1] || 'tcp';
+                    containerPort = parts[0];
                     hostPort = containerPort;
-                } else {
-                    // 有主机端口和容器端口
-                    hostPort = parts[0];
-                    containerPort = parts[1].split('/')[0];
-                    proto = parts[1].split('/')[1] || 'tcp';
+                } else if (parts.length >= 2) {
+                    // 有主机端口和容器端口，支持 "ip:host:container"
+                    hostPort = parts[parts.length - 2];
+                    containerPort = parts[parts.length - 1];
                 }
             } else if (typeof port === 'object' && port !== null) {
                 // 对象格式：{ published: "hostPort", target: "containerPort", protocol: "tcp" }
-                hostPort = port.published || port.hostPort || port.target;
-                containerPort = port.target || port.containerPort;
-                proto = port.protocol || 'tcp';
+                hostPort = port.published || port.host || port.host_port || port.hostPort || '';
+                containerPort = port.target || port.container || port.container_port || port.containerPort || '';
+                proto = String(port.protocol || 'tcp').toLowerCase();
             } else {
                 continue;
             }
-            
+
+            hostPort = normalizePort(hostPort || containerPort);
+            containerPort = normalizePort(containerPort);
+            if (!/^\d+$/.test(containerPort)) {
+                continue;
+            }
+            if (!/^\d+$/.test(hostPort)) {
+                hostPort = containerPort;
+            }
+
             extractedPorts.push({ hostPort, containerPort, proto, service: serviceName });
         }
         
@@ -1201,6 +1592,10 @@ class StepManager {
             if (inputs[0]) inputs[0].value = envVar.key;
             if (inputs[1]) inputs[1].value = envVar.value;
         }
+
+        if (container.querySelectorAll('.env-item').length === 0) {
+            this.addEnvVariable();
+        }
     }
     
     // 填充卷挂载到表单
@@ -1219,6 +1614,10 @@ class StepManager {
             if (inputs[0]) inputs[0].value = volume.source;
             if (inputs[1]) inputs[1].value = volume.target;
         }
+
+        if (container.querySelectorAll('.volume-item').length === 0) {
+            this.addVolume();
+        }
     }
     
     // 填充端口信息到路由配置
@@ -1227,9 +1626,6 @@ class StepManager {
         
         // 清空现有路由配置
         container.innerHTML = '';
-        
-        // 跟踪是否添加了HTTP/HTTPS路由
-        let hasHttpRoute = false;
         
         // 添加提取的端口信息作为路由
         for (const port of ports) {
@@ -1246,32 +1642,23 @@ class StepManager {
             // 获取所有输入框
             const inputs = lastRouteItem.querySelectorAll('.input-field');
             
-            // 从docker-compose文件获取端口信息
-            const containerPort = parseInt(port.containerPort);
+            // 从 docker-compose ports 中读取真实映射
+            const publishedPort = parseInt(String(port.hostPort || port.containerPort || ''), 10);
+            const containerPort = parseInt(String(port.containerPort || port.hostPort || ''), 10);
+            if (!Number.isInteger(publishedPort) || !Number.isInteger(containerPort)) {
+                continue;
+            }
             const serviceName = port.service || 'service';
             const proto = port.proto || 'tcp';
             
-            let routeType, target, protocol, path;
-            
-            // 根据端口号智能判断路由类型
-            if ([80, 443, 8080, 8081, 8888, 9000].includes(containerPort)) {
-                // 常见HTTP/HTTPS端口，设置为http路由类型
-                routeType = 'http';
-                path = '/';
-                target = containerPort; // 使用实际的容器端口，而不是空字符串
-                protocol = proto;
-                hasHttpRoute = true;
-            } else {
-                // 其他端口，设置为port路由类型
-                routeType = 'port';
-                target = containerPort;
-                protocol = proto;
-                path = '/';
-                
-                // 根据端口号智能判断协议（仅在端口路由类型下）
-                if ([53, 123, 161, 162].includes(containerPort)) {
-                    protocol = 'udp';
-                }
+            const routeType = 'port';
+            // 路由端口使用发布端口（host/published），目标保留容器端口用于展示真实映射
+            const target = String(publishedPort);
+            let protocol = proto;
+            const path = publishedPort === containerPort ? '/' : String(containerPort);
+            // 根据端口号智能判断协议（仅端口类型路由）
+            if ([53, 123, 161, 162].includes(publishedPort) || [53, 123, 161, 162].includes(containerPort)) {
+                protocol = 'udp';
             }
             
             // 设置路由类型
@@ -1283,9 +1670,8 @@ class StepManager {
                     protocolSelect.value = protocol;
                 }
                 
-                // 设置路径和端口号
-                if (inputs[2]) inputs[2].value = path;
-                if (inputs[3]) inputs[3].value = target;
+                // 新布局：端口号在前，目标在后
+                this.writeRoutePathTarget(routeType, inputs, path, target);
                 
                 // 更新路由配置显示
                 this.toggleRouteConfig(routeTypeSelect, lastRouteItem);
@@ -1297,8 +1683,8 @@ class StepManager {
             });
         }
         
-        // 如果没有提取到端口信息或没有HTTP/HTTPS路由，添加一个默认的HTTP根路径路由
-        if (ports.length === 0 || !hasHttpRoute) {
+        // 如果没有提取到端口信息，添加一个默认的 TCP/UDP 端口路由
+        if (ports.length === 0) {
             this.addRoute();
             const routeItems = container.querySelectorAll('.route-item');
             const lastRouteItem = routeItems[routeItems.length - 1];
@@ -1306,10 +1692,8 @@ class StepManager {
             const inputs = lastRouteItem.querySelectorAll('.input-field');
             
             if (routeTypeSelect) {
-                // 设置为HTTP路由类型
-                routeTypeSelect.value = 'http';
-                // 设置默认路径
-                if (inputs[2]) inputs[2].value = '/';
+                routeTypeSelect.value = 'port';
+                this.writeRoutePathTarget('port', inputs, '/', '');
                 // 更新路由配置显示
                 this.toggleRouteConfig(routeTypeSelect, lastRouteItem);
             }
@@ -1320,15 +1704,21 @@ class StepManager {
     async selectOutputDirectory() {
         console.log('selectOutputDirectory 方法被调用');
         try {
-            console.log('调用 window.electronAPI.selectDirectory');
-            const result = await window.electronAPI.selectDirectory({
-                title: '选择输出目录'
-            });
-            
-            console.log('selectDirectory 返回结果:', result);
-            
-            if (!result.canceled && result.filePaths.length > 0) {
-                const directoryPath = result.filePaths[0];
+            const result = await this.pickDirectoryInElectron('选择输出目录');
+            if (!result) {
+                const browserDir = await this.pickDirectoryInBrowser();
+                if (browserDir) {
+                    document.getElementById('output-directory').value = browserDir;
+                    this.showNotification('已在 Web 预览模式选择目录', 'success');
+                    return;
+                }
+                this.showNotification('未选择目录，请手动输入路径', 'info');
+                return;
+            }
+
+            console.log('目录选择返回结果:', result);
+            const directoryPath = this.extractSelectedPath(result);
+            if (directoryPath) {
                 document.getElementById('output-directory').value = directoryPath;
             }
         } catch (error) {
@@ -1341,6 +1731,20 @@ class StepManager {
     async selectDockerfile() {
         console.log('selectDockerfile 方法被调用');
         try {
+            if (!this.hasElectronFileApi()) {
+                const files = await this.pickFilesInBrowser('*/*', false);
+                if (files.length === 0) return;
+                const file = files[0];
+                const content = await file.text();
+                const displayPath = `browser://${file.name}`;
+                document.getElementById('dockerfile-path').value = displayPath;
+                document.getElementById('dockerfile-content').value = content;
+                localStorage.setItem('dockerfilePath', displayPath);
+                localStorage.setItem('dockerfileContent', content);
+                this.showNotification('已在 Web 预览模式加载 Dockerfile 内容', 'success');
+                return;
+            }
+
             console.log('调用 window.electronAPI.selectFile');
             const result = await window.electronAPI.selectFile({
                 title: '选择 Dockerfile 文件',
@@ -1384,6 +1788,10 @@ class StepManager {
     async loadAndSaveDockerfile(filePath) {
         try {
             document.getElementById('dockerfile-path').value = filePath;
+
+            if (!window.electronAPI || typeof window.electronAPI.readFile !== 'function') {
+                return;
+            }
             
             // 读取并显示文件内容
             const readResult = await window.electronAPI.readFile(filePath);
@@ -1397,20 +1805,45 @@ class StepManager {
             throw error;
         }
     }
+
+    // 清除 Dockerfile 选择和内容
+    clearDockerfileSelection() {
+        try {
+            const dockerfilePathInput = document.getElementById('dockerfile-path');
+            const dockerfileContentInput = document.getElementById('dockerfile-content');
+
+            if (dockerfilePathInput) dockerfilePathInput.value = '';
+            if (dockerfileContentInput) dockerfileContentInput.value = '';
+
+            localStorage.removeItem('dockerfilePath');
+            localStorage.removeItem('dockerfileContent');
+
+            this.showNotification('Dockerfile 配置已清除', 'success');
+        } catch (error) {
+            console.error('清除 Dockerfile 配置失败:', error);
+            this.showNotification('清除 Dockerfile 配置失败', 'error');
+        }
+    }
     
     // 选择 Dockerfile 输出目录
     async selectDockerfileOutputDirectory() {
         console.log('selectDockerfileOutputDirectory 方法被调用');
         try {
-            console.log('调用 window.electronAPI.selectDirectory');
-            const result = await window.electronAPI.selectDirectory({
-                title: '选择 Dockerfile 输出目录'
-            });
-            
-            console.log('selectDirectory 返回结果:', result);
-            
-            if (!result.canceled && result.filePaths.length > 0) {
-                const directoryPath = result.filePaths[0];
+            const result = await this.pickDirectoryInElectron('选择 Dockerfile 输出目录');
+            if (!result) {
+                const browserDir = await this.pickDirectoryInBrowser();
+                if (browserDir) {
+                    document.getElementById('dockerfile-output-path').value = browserDir;
+                    this.showNotification('已在 Web 预览模式选择目录', 'success');
+                    return;
+                }
+                this.showNotification('未选择目录，请手动输入路径', 'info');
+                return;
+            }
+
+            console.log('目录选择返回结果:', result);
+            const directoryPath = this.extractSelectedPath(result);
+            if (directoryPath) {
                 document.getElementById('dockerfile-output-path').value = directoryPath;
             }
         } catch (error) {
@@ -1463,12 +1896,12 @@ class StepManager {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">路径</label>
-                        <input type="text" class="input-field border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="如 /api/" value="/">
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">端口号</label>
                         <input type="text" class="input-field border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="如 8080">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">目标</label>
+                        <input type="text" class="input-field border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="如 /" value="/">
                     </div>
                 </div>
             </div>
@@ -1606,11 +2039,19 @@ class StepManager {
         if (routeType === 'port') {
             // TCP/UDP 端口路由
             portConfig.style.display = 'block';
-            pathLabel.textContent = '路径';
-            pathInput.placeholder = '如 /';
-            targetLabel.textContent = '端口号';
-            targetInput.placeholder = '如 8080';
-            targetInput.value = targetInput.value || '';
+            pathLabel.textContent = '端口号';
+            pathInput.placeholder = '如 8080';
+            targetLabel.textContent = '目标';
+            targetInput.placeholder = '如 80（容器端口）';
+
+            // 兼容旧布局：端口号在第4个输入时自动交换到第3个输入
+            if (!this.isValidPortValue(pathInput.value) && this.isValidPortValue(targetInput.value)) {
+                const oldPort = targetInput.value;
+                const oldTarget = pathInput.value;
+                pathInput.value = oldPort;
+                targetInput.value = oldTarget || '/';
+            }
+            targetInput.value = targetInput.value || '/';
         } else if (routeType === 'static') {
             // 静态文件路由
             portConfig.style.display = 'none';
@@ -1750,6 +2191,13 @@ class StepManager {
             // 3. 检查是否有 Docker Compose 文件，如果没有，生成一个
             let composeData = null;
             let composePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
+            const composeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
+            const normalizedComposeStorage = this.normalizeComposeStorage(composePaths, composeContents);
+            composePaths = normalizedComposeStorage.composePaths;
+            if (normalizedComposeStorage.changed) {
+                localStorage.setItem('composePaths', JSON.stringify(normalizedComposeStorage.composePaths));
+                localStorage.setItem('composeContents', JSON.stringify(normalizedComposeStorage.composeContents));
+            }
             
             if (composePaths.length > 0) {
                 updateProgress(2, '正在解析所有 Docker Compose 文件...');
@@ -1831,8 +2279,25 @@ services:
     // 解析 Docker Compose 文件
     async parseComposeFile(filePath) {
         try {
+            const normalizedFilePath = this.normalizeBrowserComposePath(filePath);
+            const savedComposeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
+            const cachedContent = String(
+                savedComposeContents[normalizedFilePath]
+                || savedComposeContents[filePath]
+                || ''
+            ).trim();
+            if (cachedContent) {
+                return await this.parseComposeContent(cachedContent);
+            }
+
+            if (!window.electronAPI
+                || typeof window.electronAPI.isFile !== 'function'
+                || typeof window.electronAPI.readFile !== 'function') {
+                throw new Error('当前环境不支持按文件路径读取 Compose，请直接上传或粘贴配置内容');
+            }
+
             // 检查文件是否存在且是文件，不是目录
-            const isFileResult = await window.electronAPI.isFile(filePath);
+            const isFileResult = await window.electronAPI.isFile(normalizedFilePath);
             if (!isFileResult.success) {
                 throw new Error('检查 Docker Compose 文件失败：' + isFileResult.error);
             }
@@ -1840,22 +2305,43 @@ services:
                 throw new Error('Docker Compose 文件路径必须是一个文件，而不是目录');
             }
             
-            const result = await window.electronAPI.readFile(filePath);
+            const result = await window.electronAPI.readFile(normalizedFilePath);
             if (!result.success) {
                 throw new Error('读取 Docker Compose 文件失败：' + result.error);
             }
-            
-            // 使用 window.electronAPI 解析 YAML
-            const yamlResult = await window.electronAPI.parseYaml(result.content);
-            if (!yamlResult.success) {
-                throw new Error('解析 Docker Compose 文件失败：' + yamlResult.error);
-            }
-            
-            return yamlResult.data;
+
+            return await this.parseComposeContent(result.content);
         } catch (error) {
             console.error('解析 Docker Compose 文件失败:', error);
             throw error;
         }
+    }
+
+    async parseComposeContent(content) {
+        const composeText = String(content || '').trim();
+        if (!composeText) {
+            throw new Error('Docker Compose 配置内容为空');
+        }
+
+        if (window.electronAPI && typeof window.electronAPI.parseYaml === 'function') {
+            const yamlResult = await window.electronAPI.parseYaml(composeText);
+            if (!yamlResult.success) {
+                throw new Error(yamlResult.error || 'YAML 解析失败');
+            }
+            return yamlResult.data || {};
+        }
+
+        if (!this.browserYamlParser) {
+            const yamlUrl = new URL('node_modules/yaml/browser/dist/index.js', window.location.href).href;
+            const yamlModule = await import(yamlUrl);
+            this.browserYamlParser = yamlModule.parse || yamlModule.default?.parse;
+        }
+
+        if (typeof this.browserYamlParser !== 'function') {
+            throw new Error('当前环境不支持 YAML 解析');
+        }
+
+        return this.browserYamlParser(composeText) || {};
     }
     
     // 显示通知

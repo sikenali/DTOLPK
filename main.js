@@ -49,8 +49,21 @@ if (parsedArgs.help) {
 
 // 保持对窗口对象的全局引用，防止被垃圾回收
 let mainWindow;
+const APP_USER_MODEL_ID = 'com.dtolpk.app';
+
+function resolveAppIconPath() {
+    const candidates = [
+        path.join(__dirname, 'build', 'icon.ico'),
+        path.join(__dirname, 'build', 'icon.png'),
+        path.join(__dirname, 'build', 'icon.svg')
+    ];
+
+    return candidates.find((candidate) => fs.existsSync(candidate));
+}
 
 function createWindow() {
+    const appIconPath = resolveAppIconPath();
+
     // 创建浏览器窗口
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -71,7 +84,7 @@ function createWindow() {
         // 浅色主题
         backgroundColor: '#ffffff',
         // 窗口图标
-        icon: path.join(__dirname, 'build', 'icon.ico')
+        icon: appIconPath
     });
 
     // 加载主页面
@@ -94,33 +107,16 @@ function createWindow() {
 
 // 应用就绪时创建窗口
 app.on('ready', () => {
+    if (process.platform === 'win32') {
+        app.setAppUserModelId(APP_USER_MODEL_ID);
+    }
+
     // 创建窗口
     createWindow();
     
     // 隐藏默认菜单
     const { Menu } = require('electron');
     Menu.setApplicationMenu(null);
-    
-    // 设置应用图标（影响任务栏）
-    if (process.platform === 'win32') {
-        // Windows平台
-        app.setAppUserModelId('com.dtolpk.app');
-        // 设置任务栏图标
-        app.setAppUserModelId('com.dtolpk.app');
-    }
-    
-    // 设置应用图标
-    const iconPath = path.join(__dirname, 'build', 'icon.ico');
-    if (process.platform === 'win32') {
-        // Windows平台
-        app.setAppUserModelId('com.dtolpk.app');
-    } else if (process.platform === 'darwin') {
-        // macOS平台
-        // macOS平台不需要额外设置图标，会自动使用Info.plist中配置的图标
-    } else {
-        // Linux平台
-        // Linux平台会自动使用窗口图标作为应用图标
-    }
 });
 
 // 所有窗口关闭时退出应用
