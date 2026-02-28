@@ -4,6 +4,7 @@ class StepManager {
         this.currentStep = 1;
         this.totalSteps = 8;
         this.iconPreviewObjectUrl = null;
+        this.isConverting = false;
         this.init();
     }
     
@@ -819,6 +820,19 @@ class StepManager {
             bindIfExists('start-convert-btn', () => {
                 this.startConversion();
             });
+
+            bindIfExists('close-convert-modal-btn', () => {
+                this.hideConvertProgressModal();
+            });
+
+            const convertModal = document.getElementById('convert-progress-modal');
+            if (convertModal) {
+                convertModal.addEventListener('click', (event) => {
+                    if (event.target === convertModal) {
+                        this.hideConvertProgressModal();
+                    }
+                });
+            }
             
             console.log('事件监听器绑定完成');
         } catch (error) {
@@ -2356,6 +2370,15 @@ class StepManager {
     
     // 开始转换
     async startConversion() {
+        if (this.isConverting) {
+            this.showConvertProgressModal();
+            this.showNotification('转换进行中，请稍候...', 'info');
+            return;
+        }
+
+        this.isConverting = true;
+        this.showConvertProgressModal();
+        this.setConvertButtonLoading(true);
         this.clearConvertLog();
         this.log('开始转换...');
         document.getElementById('progress-percentage').textContent = '0%';
@@ -2445,6 +2468,9 @@ class StepManager {
             this.log(`转换失败：${error.message}`, 'error');
             console.error('转换失败:', error);
             this.showNotification('转换失败！请检查日志信息。', 'error');
+        } finally {
+            this.isConverting = false;
+            this.setConvertButtonLoading(false);
         }
     }
     
@@ -2683,6 +2709,34 @@ services:
         });
     }
     
+    showConvertProgressModal() {
+        const modal = document.getElementById('convert-progress-modal');
+        if (!modal) return;
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+
+    hideConvertProgressModal() {
+        const modal = document.getElementById('convert-progress-modal');
+        if (!modal) return;
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    setConvertButtonLoading(isLoading) {
+        const button = document.getElementById('start-convert-btn');
+        if (!button) return;
+
+        if (isLoading) {
+            button.setAttribute('aria-busy', 'true');
+            button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 转换中...';
+            return;
+        }
+
+        button.removeAttribute('aria-busy');
+        button.innerHTML = '<i class="fa fa-play"></i> 开始转换';
+    }
+
     clearConvertLog(initialMessage = '') {
         const logContainer = document.getElementById('convert-log');
         if (!logContainer) return;

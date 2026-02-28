@@ -42,7 +42,7 @@
     .nav-item.nav-item-active { background:linear-gradient(135deg,rgba(20,184,166,.76) 0%,rgba(14,165,233,.72) 100%); color:#ffffff; font-weight:600; border-color:rgba(255,255,255,.55); box-shadow:0 10px 22px rgba(14,116,144,.2), inset 0 1px 0 rgba(255,255,255,.34); }
     .nav-item.nav-item-active i { color:#ffffff; }
     .sidebar-foot { padding:14px 18px; border-top:1px solid var(--line-soft); color:#94a3b8; font-size:12px; line-height:1.5; text-align:center; }
-    .workspace { flex:1; overflow:auto; padding:26px 28px; position:relative; z-index:1; }
+    .workspace { flex:1; overflow:auto; padding:26px 28px; position:relative; }
     .page-head h1 { margin:0; font-size:28px; font-weight:800; letter-spacing:.2px; color:#0f172a; }
     .page-head p { margin:8px 0 0; color:#475569; font-size:14px; }
     .section-content { margin-top:24px; }
@@ -66,10 +66,31 @@
     .field::placeholder,.input-field::placeholder,textarea.input-field::placeholder { color:#6b88a4; }
     .field:focus,.input-field:focus,select.input-field:focus,textarea.input-field:focus { border-color:rgba(20,184,166,.78); box-shadow:0 0 0 3px rgba(56,189,248,.24), 0 10px 20px rgba(14,116,144,.12); background:rgba(255,255,255,.9); }
     #compose-content,#dockerfile-content { min-height:400px; height:400px; }
-    #generate-app .equal-height-field { min-height:118px; display:flex; flex-direction:column; justify-content:flex-start; }
-    #generate-app .align-row-2 { min-height:162px; }
-    #generate-app #app-package { min-height:42px; }
-    #generate-app #unsupported-platform-group .platform-grid { min-height:42px; }
+    .generate-layout { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 24px; align-items:start; }
+    .generate-layout .field-group { margin-bottom:0; }
+    #app-name-group { grid-column:1; grid-row:1; }
+    #icon-upload-group { grid-column:2; grid-row:1; align-self:start; }
+    #app-package-group { grid-column:1; grid-row:2; }
+    #app-description-group { grid-column:2; grid-row:2 / span 2; align-self:stretch; display:flex; flex-direction:column; }
+    #app-description-group .label { margin-bottom:6px; }
+    #app-description { flex:1; min-height:152px; }
+    #app-version-group { grid-column:1; grid-row:3; margin-top:-6px; }
+    #app-homepage-group { grid-column:1; grid-row:4; }
+    #unsupported-platform-group { grid-column:2; grid-row:4; }
+    #app-author-group { grid-column:1; grid-row:5; }
+    #output-directory-group { grid-column:2; grid-row:5; }
+    #registry-url-group { grid-column:1; grid-row:6; }
+    #registry-url-group .field { min-height:56px; }
+    #start-convert-btn { grid-column:2; grid-row:6; align-self:end; }
+    .generate-output-field .field-row { align-items:stretch; }
+    .generate-output-field .field { flex:1; }
+    .start-convert-btn { width:100%; min-height:56px; font-size:16px; }
+    #convert-progress-modal { z-index:1200; }
+    #convert-progress-modal .modal-card { max-width:560px; padding:14px; }
+    .convert-modal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .convert-modal-title { margin:0; font-size:18px; font-weight:700; color:#0f172a; }
+    .convert-modal-close { width:34px; height:34px; padding:0; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; }
+    #convert-progress-modal #convert-log { margin-top:10px; height:170px; }
     .mono { font-family:"JetBrains Mono",Consolas,monospace; font-size:12px; line-height:1.55; }
     .field-row { display:flex; gap:10px; align-items:center; }
     .btn-primary,.btn-secondary,.btn-danger,.btn-ghost { border-radius:11px; font-size:14px; font-weight:600; padding:9px 14px; border:1px solid transparent; cursor:pointer; transition:all .2s ease; white-space:nowrap; backdrop-filter:blur(10px) saturate(150%); -webkit-backdrop-filter:blur(10px) saturate(150%); }
@@ -124,7 +145,6 @@
     .icon-remove-btn:hover { background:#dc2626; }
     .preview { margin-top:10px; display:none; }
     .preview img { width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
-    .convert-area { margin-top:16px; display:grid; gap:16px; }
     .terminal-card { padding:14px; border:1px solid rgba(255,255,255,.72); border-radius:12px; background:linear-gradient(145deg,rgba(255,255,255,.66) 0%,rgba(255,255,255,.5) 100%); box-shadow:0 16px 28px rgba(14,116,144,.12), inset 0 1px 0 rgba(255,255,255,.48); backdrop-filter:blur(16px) saturate(155%); -webkit-backdrop-filter:blur(16px) saturate(155%); }
     .terminal-progress-head { justify-content:space-between; margin-bottom:10px; }
     .terminal-progress-label { font-size:14px; font-weight:600; color:#244761; }
@@ -142,7 +162,7 @@
     .terminal-line-success .terminal-line-message { color:#86efac; }
     .terminal-line-error .terminal-line-message { color:#fda4af; }
     .compat-hidden { display:none; }
-    .modal { position:fixed; inset:0; background:rgba(15,23,42,.4); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
+    .modal { position:fixed; inset:0; background:rgba(15,23,42,.4); display:none; align-items:center; justify-content:center; z-index:1000; padding:16px; }
     .modal.show { display:flex; }
     .modal-card { width:100%; max-width:600px; background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.8); border-radius:14px; box-shadow:0 20px 44px rgba(15,23,42,.24); padding:24px;
       backdrop-filter:blur(16px) saturate(160%); -webkit-backdrop-filter:blur(16px) saturate(160%); }
@@ -179,9 +199,11 @@
       .nav-item { border-left:0; border-radius:8px; height:44px; padding:0 12px; margin:0; }
       .workspace { padding:14px; }
       .grid-two,.two-card { grid-template-columns:1fr; gap:14px; }
-      #generate-app .align-row-2,
-      #generate-app .equal-height-field { min-height:auto; }
+      .generate-layout { grid-template-columns:1fr; gap:14px; }
+      .generate-layout > * { grid-column:1 !important; grid-row:auto !important; }
       #convert-log { height:220px; }
+      #convert-progress-modal .modal-card { max-width:100%; }
+      #convert-progress-modal #convert-log { height:160px; }
     }
     .section-content { animation:fadeUp .24s ease; transform-origin:top center; }
     @keyframes fadeUp {
@@ -299,70 +321,51 @@
 
       <section id="generate-app" class="section-content" style="display: none;">
         <div class="panel">
-          <div class="two-card">
-            <div>
-              <div class="field-group"><label class="label required" for="app-name">应用名称</label><input id="app-name" class="field" type="text" placeholder="lazycatapp"></div>
-              <div id="icon-upload-group" class="field-group align-row-2">
-                <label id="icon-upload-label" class="label">应用图标</label>
-                <div id="icon-upload-zone" class="upload-zone" role="button" tabindex="0" aria-label="点击上传图标">
-                  <div class="upload-zone-placeholder"><i class="fa-regular fa-image"></i></div>
-                  <div class="upload-zone-preview"><img id="icon-upload-preview-img" src="" alt="Uploaded Icon"></div>
-                  <button id="remove-icon-btn" type="button" class="icon-remove-btn" aria-label="删除已上传图标"><i class="fa fa-times"></i></button>
-                </div>
-                <div id="icon-upload-tip" class="helper"></div>
-                <input id="icon-path" type="hidden" value="">
+          <div class="generate-layout">
+            <div id="app-name-group" class="field-group"><label class="label required" for="app-name">应用名称</label><input id="app-name" class="field" type="text" placeholder="lazycatapp"></div>
+            <div id="registry-url-group" class="field-group"><label class="label" for="registry-url">推送镜像仓库地址</label><input id="registry-url" class="field" type="url" placeholder="dev.$BOXNAME.heiyu.space/lzc/lazycatapp:latest"></div>
+            <div id="app-homepage-group" class="field-group"><label class="label" for="app-homepage">应用主页</label><input id="app-homepage" class="field" type="text" placeholder="https://lazycat.cloud"></div>
+            <div id="app-description-group" class="field-group"><label class="label" for="app-description">应用描述</label><textarea id="app-description" class="field" placeholder="请输入应用的功能说明..."></textarea></div>
+            <div id="app-package-group" class="field-group"><label class="label required" for="app-package">应用包名</label><input id="app-package" class="field" type="text" placeholder="cloud.lazycat.app.xxx"></div>
+            <div id="unsupported-platform-group" class="field-group">
+              <label class="label">不支持平台</label>
+              <div class="platform-grid">
+                <label><input id="platform-linux" type="checkbox">Linux</label>
+                <label><input id="platform-macos" type="checkbox">macOS</label>
+                <label><input id="platform-windows" type="checkbox">Windows</label>
+                <label><input id="platform-ios" type="checkbox">iOS</label>
+                <label><input id="platform-android" type="checkbox">Android</label>
+                <label><input id="platform-tvos" type="checkbox">智慧屏</label>
+                <label class="version-row"><input id="has-version-requirement" type="checkbox">限制系统版本</label>
               </div>
-              <div id="app-package-group" class="field-group equal-height-field"><label class="label required" for="app-package">应用包名</label><input id="app-package" class="field" type="text" placeholder="cloud.lazycat.app.xxx"></div>
+              <div id="version-requirement-field" style="display: none;"><input id="min-os-version" class="field" type="text" value=">= 1.0.18" placeholder="例如 >= 1.0.18"></div>
             </div>
-
-            <div>
-              <div class="field-group"><label class="label" for="app-homepage">应用主页</label><input id="app-homepage" class="field" type="text" placeholder="https://lazycat.cloud"></div>
-              <div id="app-description-group" class="field-group align-row-2"><label class="label" for="app-description">应用描述</label><textarea id="app-description" class="field" placeholder="请输入应用的功能说明..."></textarea></div>
-              <div id="unsupported-platform-group" class="field-group equal-height-field">
-                <label class="label">不支持平台</label>
-                <div class="platform-grid">
-                  <label><input id="platform-linux" type="checkbox">Linux</label>
-                  <label><input id="platform-macos" type="checkbox">macOS</label>
-                  <label><input id="platform-windows" type="checkbox">Windows</label>
-                  <label><input id="platform-ios" type="checkbox">iOS</label>
-                  <label><input id="platform-android" type="checkbox">Android</label>
-                  <label><input id="platform-tvos" type="checkbox">智慧屏</label>
-                  <label class="version-row"><input id="has-version-requirement" type="checkbox">限制系统版本</label>
-                </div>
-                <div id="version-requirement-field" style="display: none;"><input id="min-os-version" class="field" type="text" value=">= 1.0.18" placeholder="例如 >= 1.0.18"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid-two" style="gap: 14px; margin-top: 14px;">
-            <div class="field-group" style="margin-bottom: 0;">
+            <div id="app-version-group" class="field-group">
               <label class="label required" for="app-version">应用版本</label>
               <input id="app-version" class="field" type="text" value="1.0.0" placeholder="1.0.0">
             </div>
-            <div class="field-group" style="margin-bottom: 0;">
-              <label class="label" for="registry-url">推送镜像仓库地址</label>
-              <input id="registry-url" class="field" type="url" placeholder="dev.$BOXNAME.heiyu.space/lzc/lazycatapp:latest">
-            </div>
-            <div class="field-group" style="margin-bottom: 0;">
+            <div id="app-author-group" class="field-group">
               <label class="label" for="app-author">应用作者</label>
               <input id="app-author" class="field" type="text" placeholder="lazycat">
             </div>
-            <div class="field-group" style="margin-bottom: 0;">
+            <div id="output-directory-group" class="field-group generate-output-field">
               <label class="label required" for="output-directory">生成应用存储路径</label>
               <div class="field-row">
                 <input id="output-directory" class="field" type="text" placeholder="选择生成应用文件夹的绝对路径">
                 <button id="select-output-dir-btn" type="button" class="btn-secondary">选择目录</button>
               </div>
             </div>
-          </div>
-
-          <div class="convert-area">
-            <button id="start-convert-btn" type="button" class="btn-primary" style="height: 44px; font-size: 15px;"><i class="fa fa-play"></i> 开始转换</button>
-            <div class="terminal-card">
-              <div class="field-row terminal-progress-head"><span id="progress-label" class="terminal-progress-label">转换进度</span><span id="progress-percentage" style="font-size: 14px; color: var(--brand); font-weight: 700;">0%</span></div>
-              <div class="progress"><div id="convert-progress-fill"></div></div>
-              <div id="convert-log" style="margin-top: 12px;"><div id="convert-log-placeholder" class="terminal-placeholder">等待开始转换...</div></div>
+            <div id="icon-upload-group" class="field-group">
+              <label id="icon-upload-label" class="label">应用图标</label>
+              <div id="icon-upload-zone" class="upload-zone" role="button" tabindex="0" aria-label="点击上传图标">
+                <div class="upload-zone-placeholder"><i class="fa-regular fa-image"></i></div>
+                <div class="upload-zone-preview"><img id="icon-upload-preview-img" src="" alt="Uploaded Icon"></div>
+                <button id="remove-icon-btn" type="button" class="icon-remove-btn" aria-label="删除已上传图标"><i class="fa fa-times"></i></button>
+              </div>
+              <div id="icon-upload-tip" class="helper"></div>
+              <input id="icon-path" type="hidden" value="">
             </div>
+            <button id="start-convert-btn" type="button" class="btn-primary start-convert-btn"><i class="fa fa-play"></i> 开始转换</button>
           </div>
         </div>
 
@@ -380,6 +383,18 @@
         <button id="save-config-btn" type="button"></button><button id="reset-config-btn" type="button"></button>
       </div>
     </main>
+  </div>
+
+  <div id="convert-progress-modal" class="modal" aria-hidden="true">
+    <div class="modal-card terminal-card">
+      <div class="convert-modal-head">
+        <h3 id="progress-label" class="convert-modal-title">转换进度</h3>
+        <button id="close-convert-modal-btn" type="button" class="btn-ghost convert-modal-close" aria-label="关闭进度窗口"><i class="fa fa-times"></i></button>
+      </div>
+      <div class="field-row terminal-progress-head"><span style="font-size: 13px; color: #64748b;">当前进度</span><span id="progress-percentage" style="font-size: 14px; color: var(--brand); font-weight: 700;">0%</span></div>
+      <div class="progress"><div id="convert-progress-fill"></div></div>
+      <div id="convert-log"><div id="convert-log-placeholder" class="terminal-placeholder">等待开始转换...</div></div>
+    </div>
   </div>
 
   <script src="js/config.js"></script>
