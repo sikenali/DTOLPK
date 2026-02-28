@@ -53,11 +53,12 @@ const APP_USER_MODEL_ID = 'com.dtolpk.app';
 
 function resolveAppIconPath() {
     const candidates = [
+        path.join(__dirname, 'build', 'icon_preview.png'),
+        path.join(__dirname, 'build', 'icon.png'),
         path.join(process.resourcesPath || '', 'icon.ico'),
         path.join(process.resourcesPath || '', 'build', 'icon.ico'),
         path.join(process.resourcesPath || '', 'build', 'icon.png'),
         path.join(__dirname, 'build', 'icon.ico'),
-        path.join(__dirname, 'build', 'icon.png'),
         path.join(__dirname, 'build', 'icon.svg'),
         path.join(process.cwd(), 'build', 'icon.ico')
     ];
@@ -70,10 +71,10 @@ function createWindow() {
 
     // 创建浏览器窗口
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        minWidth: 1024,
-        minHeight: 768,
+        width: 1140,
+        height: 780,
+        minWidth: 980,
+        minHeight: 700,
         title: 'DTOLPK - Docker to Lazycat Package Converter',
         webPreferences: {
             // 预加载脚本，用于安全地在渲染进程中访问 Node.js API

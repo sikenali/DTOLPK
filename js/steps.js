@@ -1,4 +1,4 @@
-﻿// 步骤管理模块
+// 步骤管理模块
 class StepManager {
     constructor() {
         this.currentStep = 1;
@@ -383,7 +383,6 @@ class StepManager {
                 appDescription: appDescriptionInput.value,
                 appHomepage: appHomepageInput.value
             }));
-            this.showNotification('已根据 Compose 快速填充生成应用字段', 'success');
         }
     }
 
@@ -528,27 +527,29 @@ class StepManager {
         
         composePaths.forEach((filePath) => {
             const fileItem = document.createElement('div');
-            fileItem.className = 'flex items-center space-x-3 mb-2 p-3 border border-gray-200 rounded-lg';
+            fileItem.className = 'compose-file-item';
             
             // 文件路径显示
             const filePathSpan = document.createElement('span');
-            filePathSpan.className = 'flex-1 text-sm font-medium truncate';
+            filePathSpan.className = 'compose-file-path';
             filePathSpan.textContent = this.normalizeBrowserComposePath(filePath);
             
             // 刷新按钮
             const refreshBtn = document.createElement('button');
-            refreshBtn.className = 'btn-secondary text-xs';
+            refreshBtn.className = 'content-action-btn';
             refreshBtn.innerHTML = '<i class="fa fa-sync-alt"></i>';
-            refreshBtn.title = '刷新文件内容';
+            refreshBtn.setAttribute('data-tip', '刷新内容');
+            refreshBtn.setAttribute('aria-label', '刷新文件内容');
             refreshBtn.addEventListener('click', async () => {
                 await this.refreshComposeFile(filePath);
             });
             
             // 删除按钮
             const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn-danger text-xs';
-            deleteBtn.innerHTML = '<i class="fa fa-trash"></i>';
-            deleteBtn.title = '删除文件';
+            deleteBtn.className = 'content-action-btn content-action-danger';
+            deleteBtn.innerHTML = '<i class="fa fa-times"></i>';
+            deleteBtn.setAttribute('data-tip', '删除文件');
+            deleteBtn.setAttribute('aria-label', '删除文件');
             deleteBtn.addEventListener('click', () => {
                 // 使用文件路径而不是索引来删除文件
                 this.removeComposeFileByPath(filePath);
@@ -556,7 +557,7 @@ class StepManager {
             
             // 查看内容按钮
             const viewBtn = document.createElement('button');
-            viewBtn.className = 'btn-primary text-xs';
+            viewBtn.className = 'btn-primary compose-view-btn';
             viewBtn.textContent = '查看';
             viewBtn.addEventListener('click', async () => {
                 await this.viewComposeFileContent(filePath, composeContents[filePath]);
@@ -606,8 +607,6 @@ class StepManager {
             } else {
                 document.getElementById('compose-content').value = '';
             }
-            
-            this.showNotification('Docker Compose 文件已删除', 'success');
         } catch (error) {
             console.error('删除 Docker Compose 文件失败:', error);
             alert('删除 Docker Compose 文件失败: ' + error.message);
@@ -1382,9 +1381,7 @@ class StepManager {
                 const composeContentInput = document.getElementById('compose-content');
                 if (composePathInput) composePathInput.value = firstPath;
                 if (composeContentInput) composeContentInput.value = firstContent;
-
-                this.showNotification('已在 Web 预览模式加载 Compose 文件内容', 'success');
-                await this.autoParseComposeContent(firstContent, true);
+                await this.autoParseComposeContent(firstContent, false);
                 return;
             }
 
@@ -2083,38 +2080,42 @@ class StepManager {
         const routeId = Date.now();
         
         const routeHtml = `
-            <div class="route-item p-4 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" data-route-id="${routeId}">
-                <div class="flex justify-between items-center mb-3">
-                    <div class="font-medium text-gray-800">路由配置</div>
-                    <button type="button" class="text-red-500 hover:text-red-700 transition-colors duration-200" onclick="stepManager.removeRoute(${routeId})">
-                        <i class="fa fa-trash"></i>
+            <div class="route-item liquid-config-card" data-route-id="${routeId}">
+                <div class="liquid-card-head">
+                    <div class="liquid-card-title">路由配置</div>
+                    <button type="button" class="content-action-btn" data-tip="删除路由" aria-label="删除路由" onclick="stepManager.removeRoute(${routeId})">
+                        <i class="fa fa-times"></i>
                     </button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="liquid-card-grid">
                     <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">路由类型</label>
-                    <select class="input-field route-type border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                        <option value="http">HTTP 路由</option>
-                        <option value="https">HTTPS 路由</option>
-                        <option value="port" selected>TCP/UDP 端口</option>
-                        <option value="static">静态文件</option>
-                        <option value="exec">执行命令</option>
-                    </select>
-                </div>
-                    <div class="port-config">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">协议</label>
-                        <select class="input-field border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                            <option value="tcp" selected>TCP</option>
-                            <option value="udp">UDP</option>
+                    <label class="liquid-mini-label">路由类型</label>
+                    <div class="liquid-select">
+                        <select class="input-field route-type">
+                            <option value="http">HTTP 路由</option>
+                            <option value="https">HTTPS 路由</option>
+                            <option value="port" selected>TCP/UDP 端口</option>
+                            <option value="static">静态文件</option>
+                            <option value="exec">执行命令</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">端口号</label>
-                        <input type="text" class="input-field border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="如 8080">
+                </div>
+                    <div class="port-config">
+                        <label class="liquid-mini-label">协议</label>
+                        <div class="liquid-select">
+                            <select class="input-field">
+                                <option value="tcp" selected>TCP</option>
+                                <option value="udp">UDP</option>
+                            </select>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">目标</label>
-                        <input type="text" class="input-field border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="如 /" value="/">
+                        <label class="liquid-mini-label">端口号</label>
+                        <input type="text" class="input-field" placeholder="如 8080">
+                    </div>
+                    <div>
+                        <label class="liquid-mini-label">目标</label>
+                        <input type="text" class="input-field" placeholder="如 /" value="/">
                     </div>
                 </div>
             </div>
@@ -2311,11 +2312,11 @@ class StepManager {
         const envId = Date.now();
         
         const envHtml = `
-            <div class="env-item flex items-center space-x-3" data-env-id="${envId}">
+            <div class="env-item liquid-inline-row" data-env-id="${envId}">
                 <input type="text" class="input-field flex-1" placeholder="变量名">
                 <input type="text" class="input-field flex-1" placeholder="变量值">
-                <button type="button" class="text-danger" onclick="stepManager.removeEnvVariable(${envId})">
-                    <i class="fa fa-trash"></i>
+                <button type="button" class="content-action-btn" data-tip="删除环境" aria-label="删除环境变量" onclick="stepManager.removeEnvVariable(${envId})">
+                    <i class="fa fa-times"></i>
                 </button>
             </div>
         `;
@@ -2337,20 +2338,20 @@ class StepManager {
         const volumeId = Date.now();
         
         const volumeHtml = `
-            <div class="volume-item p-4 border border-gray-200 rounded-lg" data-volume-id="${volumeId}">
-                <div class="flex justify-between items-center mb-3">
-                    <div class="font-medium">卷挂载配置</div>
-                    <button type="button" class="text-danger" onclick="stepManager.removeVolume(${volumeId})">
-                        <i class="fa fa-trash"></i>
+            <div class="volume-item liquid-config-card" data-volume-id="${volumeId}">
+                <div class="liquid-card-head">
+                    <div class="liquid-card-title">卷挂载变量</div>
+                    <button type="button" class="content-action-btn" data-tip="删除挂载" aria-label="删除卷挂载" onclick="stepManager.removeVolume(${volumeId})">
+                        <i class="fa fa-times"></i>
                     </button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="liquid-card-grid">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">源路径</label>
+                        <label class="liquid-mini-label">源路径</label>
                         <input type="text" class="input-field" placeholder="如 ./data">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">目标路径</label>
+                        <label class="liquid-mini-label">目标路径</label>
                         <input type="text" class="input-field" placeholder="如 /app/data">
                     </div>
                 </div>
@@ -2412,7 +2413,7 @@ class StepManager {
                 return;
             }
             
-            // 3. 检查是否有 Docker Compose 文件，如果没有，生成一个
+            // 3. Docker Compose 为必填项：必须有有效配置
             let composeData = null;
             let composePaths = JSON.parse(localStorage.getItem('composePaths') || '[]');
             const composeContents = JSON.parse(localStorage.getItem('composeContents') || '{}');
@@ -2428,17 +2429,13 @@ class StepManager {
                 composeData = await this.parseAllComposeFiles();
                 // 更新配置中的 composePaths 字段
                 config.resources.composePaths = composePaths;
+                if (!composeData
+                    || !composeData.services
+                    || Object.keys(composeData.services).length === 0) {
+                    throw new Error('Docker Compose 配置不能为空，且必须包含至少一个服务');
+                }
             } else {
-                updateProgress(2, '没有 Docker Compose 文件，正在生成...');
-                // 生成默认的 docker-compose.yml 文件
-                const composePath = await this.generateDefaultComposeFile(config);
-                // 将生成的文件添加到配置中
-                composePaths = [composePath];
-                config.resources.composePaths = composePaths;
-                // 保存到 localStorage
-                localStorage.setItem('composePaths', JSON.stringify(composePaths));
-                localStorage.setItem('composeContents', JSON.stringify({ [composePath]: '' }));
-                composeData = await this.parseComposeFile(composePath);
+                throw new Error('Docker Compose 为必填项，不能为空');
             }
             
             // 4. 调用主进程生成 LPK 包
@@ -2729,12 +2726,12 @@ services:
 
         if (isLoading) {
             button.setAttribute('aria-busy', 'true');
-            button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 转换中...';
+            button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 生成中...';
             return;
         }
 
         button.removeAttribute('aria-busy');
-        button.innerHTML = '<i class="fa fa-play"></i> 开始转换';
+        button.innerHTML = '<i class="fa fa-play"></i> 生成';
     }
 
     clearConvertLog(initialMessage = '') {
