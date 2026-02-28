@@ -7,13 +7,22 @@ files:
   - filter:
       - '**/*'
       - '!node_modules/**/*'
+      - build/**/*
+icon: icon.ico
 win:
   target: nsis
+  icon: icon.ico
+nsis:
+  installerIcon: icon.ico
+  uninstallerIcon: icon.ico
+  installerHeaderIcon: icon.ico
 mac:
   target: dmg
+  icon: icon.svg
 linux:
   target:
     - deb
     - rpm
     - AppImage
-electronVersion: 39.2.3
+  icon: icon.svg
+electronVersion: 39.2.7

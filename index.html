@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DTOLPK - Docker to Lazycat Package Converter</title>
-  <link rel="icon" href="build/icon.ico" type="image/x-icon">
-  <link rel="shortcut icon" href="build/icon.ico" type="image/x-icon">
+  <link rel="icon" href="assets/brand-logo.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="assets/brand-logo.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -65,7 +65,7 @@
     textarea.field,textarea.input-field { min-height:112px; resize:vertical; line-height:1.45; }
     .field::placeholder,.input-field::placeholder,textarea.input-field::placeholder { color:#6b88a4; }
     .field:focus,.input-field:focus,select.input-field:focus,textarea.input-field:focus { border-color:rgba(20,184,166,.78); box-shadow:0 0 0 3px rgba(56,189,248,.24), 0 10px 20px rgba(14,116,144,.12); background:rgba(255,255,255,.9); }
-    #compose-content,#dockerfile-content { min-height:320px; height:320px; }
+    #compose-content,#dockerfile-content { min-height:400px; height:400px; }
     #generate-app .equal-height-field { min-height:118px; display:flex; flex-direction:column; justify-content:flex-start; }
     #generate-app .align-row-2 { min-height:162px; }
     #generate-app #app-package { min-height:42px; }
@@ -90,8 +90,8 @@
     .tab.tab-active { background:linear-gradient(135deg,rgba(20,184,166,.78) 0%,rgba(14,165,233,.72) 100%); color:#ffffff; font-weight:700; box-shadow:0 8px 18px rgba(14,116,144,.2), inset 0 1px 0 rgba(255,255,255,.3); transform:translateY(-1px); }
     .tab-pane { display:none; opacity:0; transform:translateY(6px); }
     .tab-pane.tab-pane-active { display:block; animation:fadeUp .24s ease both; }
-    .feature-list { display:grid; gap:16px; }
-    .feature-row { display:flex; align-items:flex-start; gap:10px; padding:10px 10px 14px; border-bottom:1px solid rgba(255,255,255,.5); border-radius:10px; transition:background .2s ease, box-shadow .2s ease; }
+    .feature-list { display:grid; gap:9px; }
+    .feature-row { display:flex; align-items:flex-start; gap:7px; padding:7px 7px 9px; border-bottom:1px solid rgba(255,255,255,.5); border-radius:10px; transition:background .2s ease, box-shadow .2s ease; }
     .feature-row:hover { background:rgba(255,255,255,.3); box-shadow:0 8px 16px rgba(14,116,144,.08); }
     .feature-row:last-child { border-bottom:0; padding-bottom:0; }
     .feature-row input[type="checkbox"] { margin-top:2px; width:16px; height:16px; accent-color:#0ea5a4; flex-shrink:0; filter:drop-shadow(0 2px 4px rgba(14,116,144,.2)); }
@@ -128,8 +128,6 @@
     .terminal-card { padding:14px; border:1px solid rgba(255,255,255,.72); border-radius:12px; background:linear-gradient(145deg,rgba(255,255,255,.66) 0%,rgba(255,255,255,.5) 100%); box-shadow:0 16px 28px rgba(14,116,144,.12), inset 0 1px 0 rgba(255,255,255,.48); backdrop-filter:blur(16px) saturate(155%); -webkit-backdrop-filter:blur(16px) saturate(155%); }
     .terminal-progress-head { justify-content:space-between; margin-bottom:10px; }
     .terminal-progress-label { font-size:14px; font-weight:600; color:#244761; }
-    .action-bar { margin-top:20px; display:flex; align-items:center; justify-content:space-between; gap:10px; background:rgba(255,255,255,.46); border:1px solid rgba(255,255,255,.72); padding:10px 12px; border-radius:12px; backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%); }
-    .action-bar .right { margin-left:auto; }
     .progress { width:100%; height:10px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.52); border:1px solid rgba(255,255,255,.72); box-shadow:inset 0 1px 3px rgba(14,116,144,.15); }
     .progress > div { width:0; height:100%; background:linear-gradient(90deg,rgba(20,184,166,.95) 0%,rgba(14,165,233,.88) 100%); transition:width .3s ease; position:relative; overflow:hidden; box-shadow:0 4px 10px rgba(14,116,144,.2); }
     .progress > div::after { content:""; position:absolute; top:0; left:-36%; width:36%; height:100%; background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.55),rgba(255,255,255,0)); animation:glassShimmer 2.2s linear infinite; }
@@ -200,7 +198,7 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-logo"><img src="build/icon.svg" alt="DTOLPK"></div>
+        <div class="brand-logo"><img src="assets/brand-logo.svg" alt="DTOLPK" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='build/icon.svg';}else{this.onerror=null;this.src='build/icon.ico';}"></div>
         <div>
           <div class="brand-title"></div>
           <div class="brand-meta">懒猫微服非官方打包工具</div>
@@ -252,12 +250,6 @@
             </div>
           </div>
         </div>
-        <div class="action-bar">
-          <span></span>
-          <button id="goto-project-config-btn" type="button" class="btn-primary right">
-            下一步<i class="fa fa-arrow-right"></i>
-          </button>
-        </div>
       </section>
 
       <section id="project-config" class="section-content" style="display: none;">
@@ -303,14 +295,6 @@
           </div>
         </div>
 
-        <div class="action-bar">
-          <button id="back-to-select-btn" type="button" class="btn-secondary">
-            <i class="fa fa-arrow-left"></i> 上一步
-          </button>
-          <button id="goto-generate-app-btn" type="button" class="btn-primary right">
-            下一步<i class="fa fa-arrow-right"></i>
-          </button>
-        </div>
       </section>
 
       <section id="generate-app" class="section-content" style="display: none;">
@@ -382,11 +366,6 @@
           </div>
         </div>
 
-        <div class="action-bar">
-          <button id="back-to-project-config-btn" type="button" class="btn-secondary">
-            <i class="fa fa-arrow-left"></i> 上一步
-          </button>
-        </div>
       </section>
 
       <div class="compat-hidden" aria-hidden="true">
@@ -457,7 +436,6 @@
         if (labels[0]) labels[0].textContent = 'Docker Compose 配置内容';
         if (labels[1]) labels[1].textContent = 'Dockerfile 配置内容';
 
-        setHTML('#goto-project-config-btn', '下一步<i class="fa fa-arrow-right"></i>');
 
         const tabs = document.querySelectorAll('#project-config .tabbar .tab');
         if (tabs[0]) tabs[0].textContent = '应用配置';
@@ -500,8 +478,6 @@
         setHTML('#add-env-btn', '<i class="fa fa-plus"></i> 新增变量');
         setHTML('#add-volume-btn', '<i class="fa fa-plus"></i> 新增挂载');
 
-        setHTML('#back-to-select-btn', '<i class="fa fa-arrow-left"></i> 上一步');
-        setHTML('#goto-generate-app-btn', '下一步<i class="fa fa-arrow-right"></i>');
 
         setText('label[for="app-name"]', '应用名称');
         setText('#icon-upload-label', '应用图标');
@@ -549,7 +525,6 @@
         setText('#progress-label', '转换进度');
         const logInit = document.querySelector('#convert-log-placeholder');
         if (logInit) logInit.textContent = '等待开始转换...';
-        setHTML('#back-to-project-config-btn', '<i class="fa fa-arrow-left"></i> 上一步');
 
         const pushTarget = document.getElementById('push-target');
         if (pushTarget) {
@@ -587,32 +562,6 @@
           switchSection(item.getAttribute('data-section'));
         });
       });
-
-      const gotoProjectConfigBtn = document.getElementById('goto-project-config-btn');
-      const backToSelectBtn = document.getElementById('back-to-select-btn');
-      const gotoGenerateAppBtn = document.getElementById('goto-generate-app-btn');
-      const backToProjectConfigBtn = document.getElementById('back-to-project-config-btn');
-
-      if (gotoProjectConfigBtn) {
-        gotoProjectConfigBtn.addEventListener('click', function () {
-          switchSection('project-config');
-        });
-      }
-      if (backToSelectBtn) {
-        backToSelectBtn.addEventListener('click', function () {
-          switchSection('select-project');
-        });
-      }
-      if (gotoGenerateAppBtn) {
-        gotoGenerateAppBtn.addEventListener('click', function () {
-          switchSection('generate-app');
-        });
-      }
-      if (backToProjectConfigBtn) {
-        backToProjectConfigBtn.addEventListener('click', function () {
-          switchSection('project-config');
-        });
-      }
 
       const tabs = document.querySelectorAll('.tab');
       const tabPanes = document.querySelectorAll('.tab-pane');

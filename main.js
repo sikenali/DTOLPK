@@ -53,9 +53,13 @@ const APP_USER_MODEL_ID = 'com.dtolpk.app';
 
 function resolveAppIconPath() {
     const candidates = [
+        path.join(process.resourcesPath || '', 'icon.ico'),
+        path.join(process.resourcesPath || '', 'build', 'icon.ico'),
+        path.join(process.resourcesPath || '', 'build', 'icon.png'),
         path.join(__dirname, 'build', 'icon.ico'),
         path.join(__dirname, 'build', 'icon.png'),
-        path.join(__dirname, 'build', 'icon.svg')
+        path.join(__dirname, 'build', 'icon.svg'),
+        path.join(process.cwd(), 'build', 'icon.ico')
     ];
 
     return candidates.find((candidate) => fs.existsSync(candidate));
@@ -89,6 +93,9 @@ function createWindow() {
 
     // 加载主页面
     mainWindow.loadFile('index.html');
+    if (appIconPath && typeof mainWindow.setIcon === 'function') {
+        mainWindow.setIcon(appIconPath);
+    }
 
     // 开发环境下打开开发者工具
     // mainWindow.webContents.openDevTools();

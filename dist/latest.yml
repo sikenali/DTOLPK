@@ -1,0 +1,8 @@
+version: 1.0.0
+files:
+  - url: DTOLPK-Setup-1.0.0.exe
+    sha512: mhAtmb5wJJXk3fpeVftxUXJNh+9NYkuTSsBnSNTY4XjVtAwH6Z3l/j4aeAoforJU1+auKVgRtK/jMEWF/aUhlg==
+    size: 95583260
+path: DTOLPK-Setup-1.0.0.exe
+sha512: mhAtmb5wJJXk3fpeVftxUXJNh+9NYkuTSsBnSNTY4XjVtAwH6Z3l/j4aeAoforJU1+auKVgRtK/jMEWF/aUhlg==
+releaseDate: '2026-02-28T03:53:20.155Z'
