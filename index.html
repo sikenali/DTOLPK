@@ -203,22 +203,26 @@
     .feature-row:hover { background:linear-gradient(145deg,rgba(255,255,255,.68) 0%,rgba(255,255,255,.34) 100%); border-color:rgba(255,255,255,.88); box-shadow:0 14px 24px rgba(14,116,144,.14), inset 0 1px 0 rgba(255,255,255,.72); transform:translateY(-1px); }
     .feature-row input[type="checkbox"],
     .platform-grid input[type="checkbox"],
-    .version-row input[type="checkbox"] { -webkit-appearance:none; appearance:none; width:19px; height:19px; border-radius:6px; border:1.5px solid #E6F7F9; outline:1px solid rgba(230,247,249,.9); outline-offset:0; background:linear-gradient(145deg,rgba(255,255,255,.76) 0%,rgba(255,255,255,.48) 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.78), 0 0 0 1px rgba(230,247,249,.88), 0 5px 11px hsla(var(--liquid-h),36%,28%,.16); position:relative; flex-shrink:0; cursor:pointer; transition:all .22s ease; }
+    .version-row input[type="checkbox"] { -webkit-appearance:none; appearance:none; width:19px; height:19px; border-radius:6px; border:2px solid var(--liquid-accent-deep); outline:2px solid var(--liquid-accent-soft); outline-offset:1px; background:linear-gradient(145deg,rgba(255,255,255,.9) 0%,rgba(255,255,255,.7) 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 2px 4px rgba(0,0,0,.1); position:relative; flex-shrink:0; cursor:pointer; transition:all .22s ease; }
     .feature-row input[type="checkbox"]:not(:checked),
     .platform-grid input[type="checkbox"]:not(:checked),
-    .version-row input[type="checkbox"]:not(:checked) { border-color:#E6F7F9; outline-color:rgba(230,247,249,.98); box-shadow:inset 0 1px 0 rgba(255,255,255,.82), 0 0 0 1px rgba(230,247,249,.94), 0 0 0 3px rgba(230,247,249,.56), 0 5px 11px hsla(var(--liquid-h),36%,28%,.16); }
+    .version-row input[type="checkbox"]:not(:checked) { border-color:var(--liquid-accent-deep); outline-color:var(--liquid-accent-soft); box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 2px 4px rgba(0,0,0,.1); }
     .feature-row input[type="checkbox"]::after,
     .platform-grid input[type="checkbox"]::after,
     .version-row input[type="checkbox"]::after { content:""; position:absolute; left:50%; top:50%; width:5px; height:10px; border:solid #fff; border-width:0 2px 2px 0; transform:translate(-50%,-58%) rotate(45deg) scale(.7); opacity:0; transition:opacity .18s ease, transform .18s ease; }
     .feature-row input[type="checkbox"]:checked,
     .platform-grid input[type="checkbox"]:checked,
-    .version-row input[type="checkbox"]:checked { border-color:hsla(var(--liquid-h),92%,94%,.95); background:linear-gradient(145deg,hsl(var(--liquid-h),var(--liquid-s),54%) 0%,hsl(var(--liquid-h),72%,42%) 100%); box-shadow:0 10px 18px hsla(var(--liquid-h),46%,34%,.36), inset 0 1px 0 rgba(255,255,255,.42), inset 0 0 0 1px hsla(var(--liquid-h),90%,96%,.44); }
+    .version-row input[type="checkbox"]:checked { border-color:var(--liquid-accent-mid); outline-color:var(--liquid-accent-glow); background:linear-gradient(132deg,var(--liquid-accent-deep) 0%,var(--liquid-accent-mid) 100%); box-shadow:0 4px 8px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.42), inset 0 0 0 1px rgba(255,255,255,.3); }
     .feature-row input[type="checkbox"]:checked::after,
     .platform-grid input[type="checkbox"]:checked::after,
     .version-row input[type="checkbox"]:checked::after { opacity:1; transform:translate(-50%,-58%) rotate(45deg) scale(1); }
     .feature-row input[type="checkbox"]:focus-visible,
     .platform-grid input[type="checkbox"]:focus-visible,
-    .version-row input[type="checkbox"]:focus-visible { outline:none; box-shadow:0 0 0 3px hsla(var(--liquid-h),var(--liquid-s),62%,.26), 0 8px 16px hsla(var(--liquid-h),46%,36%,.2); }
+    .version-row input[type="checkbox"]:focus-visible { outline:none; box-shadow:0 0 0 3px hsla(var(--liquid-h),var(--liquid-s),62%,.26), 0 4px 8px rgba(0,0,0,.15); }
+    #feature-background-task,
+    #platform-linux { border:2px solid var(--liquid-accent-deep) !important; outline:2px solid var(--liquid-accent-soft) !important; outline-offset:1px; background:linear-gradient(145deg,rgba(255,255,255,.9) 0%,rgba(255,255,255,.7) 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 2px 4px rgba(0,0,0,.1); }
+    #feature-background-task:checked,
+    #platform-linux:checked { border-color:var(--liquid-accent-mid) !important; outline-color:var(--liquid-accent-glow) !important; background:linear-gradient(132deg,var(--liquid-accent-deep) 0%,var(--liquid-accent-mid) 100%); box-shadow:0 4px 8px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.42), inset 0 0 0 1px rgba(255,255,255,.3); }
     .feature-title { font-size:15px; font-weight:700; margin:0; color:#133b56; }
     .feature-desc { font-size:12px; color:#5d7892; margin:4px 0 0; line-height:1.45; }
     .two-card { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
@@ -634,22 +638,22 @@
         const featureTitles = document.querySelectorAll('#app-config .feature-title');
         const featureDescs = document.querySelectorAll('#app-config .feature-desc');
         const featureTitleText = [
-          '后台任务',
-          '公网路径',
+          '开机启动，后台运行',
+          '公开路由',
           'KVM 加速',
-          '多实例部署',
+          '每个用户创建一个实例',
           'GPU 加速',
-          'USB 设备支持',
+          'USB 设备挂载',
           '文件关联'
         ];
         const featureDescText = [
-          '允许应用在后台持续运行并保持服务可用',
-          '启用后可将指定路由公开到外部网络',
-          '为需要虚拟化能力的应用开启 KVM 支持',
+          '应用将在系统启动时自动运行',
+          '无需登录即可访问的路由',
+          '启动 KVM 虚拟化加速',
           '允许应用在同一设备上启动多个实例',
-          '为图形或 AI 场景启用 GPU 计算能力',
-          '允许容器访问主机 USB 外设',
-          '配置应用可处理的文件类型及打开方式'
+          '启用 GPU 加速支持',
+          '支持USB 设备挂载',
+          '可以打开特定类型文件'
         ];
         featureTitles.forEach(function (el, idx) {
           if (featureTitleText[idx]) el.textContent = featureTitleText[idx];
