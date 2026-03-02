@@ -13,12 +13,13 @@
   <style>
     :root { --bg:#E6F7F9; --card:rgba(255,255,255,.36); --line:rgba(125,211,252,.34); --line-soft:rgba(255,255,255,.58); --text:#08243a; --muted:#49657f; --brand:#E6F7F9; --brand-soft:rgba(230,247,249,.38); --danger:#ef4444; --accent:#f59e0b; --sidebar-top:rgba(255,255,255,.3); --sidebar-bottom:rgba(255,255,255,.22); --glass-bg:rgba(255,255,255,.36); --glass-bg-strong:rgba(255,255,255,.54); --glass-border:rgba(255,255,255,.72); --glass-shadow:0 14px 30px rgba(15,23,42,.1); --glass-edge:rgba(255,255,255,.88); --glass-highlight:rgba(255,255,255,.72); --glass-tint:rgba(230,247,249,.28); --glass-shadow-deep:0 20px 34px rgba(15,23,42,.12); --liquid-h:186; --liquid-s:55%; --liquid-l:73%; --liquid-accent:hsl(var(--liquid-h),var(--liquid-s),var(--liquid-l)); --liquid-accent-ink:hsl(var(--liquid-h),45%,24%); --liquid-accent-soft:hsla(var(--liquid-h),70%,86%,.4); --liquid-accent-glow:hsla(var(--liquid-h),62%,74%,.4); --liquid-accent-deep:hsla(var(--liquid-h),45%,46%,.92); --liquid-accent-mid:hsla(var(--liquid-h),50%,58%,.94); }
     * { box-sizing: border-box; }
+    html, body { width:100%; height:100%; min-height:100dvh; }
     body { margin:0; background:
       radial-gradient(980px 600px at -8% -22%, rgba(59,130,246,.38) 0%, rgba(59,130,246,0) 58%),
       radial-gradient(860px 520px at 112% 6%, rgba(20,184,166,.34) 0%, rgba(20,184,166,0) 56%),
       radial-gradient(760px 520px at 50% 118%, rgba(14,165,233,.26) 0%, rgba(14,165,233,0) 60%),
       linear-gradient(156deg,#eaf6ff 0%,#dff1ff 44%,#e7fbff 100%);
-      color:var(--text); font-family:"Source Han Sans SC","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; min-height:100vh; overflow:hidden; }
+      color:var(--text); font-family:"Source Han Sans SC","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; min-height:100dvh; overflow:hidden; }
     body::before { content:""; position:fixed; inset:0; pointer-events:none; background:
       linear-gradient(122deg, rgba(255,255,255,.58), rgba(255,255,255,0) 38%),
       radial-gradient(900px 360px at 18% 12%, rgba(255,255,255,.34), rgba(255,255,255,0) 64%),
@@ -27,15 +28,15 @@
     body::after { content:""; position:fixed; left:50%; top:52%; width:960px; height:960px; transform:translate(-50%,-50%); border-radius:50%;
       background:radial-gradient(circle, rgba(255,255,255,.5) 0%, rgba(255,255,255,0) 64%);
       filter:blur(52px); pointer-events:none; z-index:0; animation:liquidOrbFloat 18s ease-in-out infinite; }
-    .app-shell { display:flex; width:100%; height:100vh; }
+    .app-shell { display:flex; width:100%; height:100dvh; min-height:100dvh; align-items:stretch; overflow:hidden; }
     .sidebar { width:250px; background:linear-gradient(180deg,var(--sidebar-top) 0%,var(--sidebar-bottom) 100%); border-right:1px solid rgba(255,255,255,.42); display:flex; flex-direction:column; flex-shrink:0;
-      backdrop-filter:blur(24px) saturate(165%); -webkit-backdrop-filter:blur(24px) saturate(165%); box-shadow:inset -1px 0 0 rgba(255,255,255,.5), 16px 0 30px rgba(14,116,144,.1); z-index:2; }
-    .brand { height:72px; padding:0 20px; display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,.42); }
+      height:100%; min-height:0; backdrop-filter:blur(24px) saturate(165%); -webkit-backdrop-filter:blur(24px) saturate(165%); box-shadow:inset -1px 0 0 rgba(255,255,255,.5), 16px 0 30px rgba(14,116,144,.1); z-index:2; }
+    .brand { height:72px; flex:0 0 72px; padding:0 20px; display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,.42); }
     .brand-logo { width:38px; height:38px; border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.42); border:1px solid rgba(255,255,255,.6); box-shadow:0 10px 18px rgba(14,165,164,.16); }
     .brand-logo img { width:100%; height:100%; object-fit:cover; }
     .brand-title { font-size:18px; font-weight:700; letter-spacing:.2px; color:var(--text); }
     .brand-meta { font-size:12px; color:#94a3b8; margin-top:2px; }
-    .nav { padding:16px 0; flex:1; overflow-y:auto; }
+    .nav { padding:16px 0; flex:1; min-height:0; overflow-y:auto; }
     .nav-item { position:relative; display:flex; align-items:center; gap:12px; height:52px; margin:0 10px 6px; border-radius:16px; padding:0 14px; cursor:pointer; color:var(--muted); transition:all .24s ease; border:1px solid rgba(255,255,255,.62); user-select:none; background:
       linear-gradient(145deg,rgba(255,255,255,.52) 0%,rgba(255,255,255,.2) 62%),
       radial-gradient(110% 140% at 12% -32%, rgba(255,255,255,.54) 0%, rgba(255,255,255,0) 62%),
@@ -50,7 +51,7 @@
     .nav-item.nav-item-active { background:linear-gradient(132deg,var(--liquid-accent-deep) 0%,var(--liquid-accent-mid) 100%); color:#ffffff; font-weight:600; border-color:hsla(var(--liquid-h),88%,90%,.72); box-shadow:0 16px 30px hsla(var(--liquid-h),36%,22%,.3), inset 0 1px 0 rgba(255,255,255,.22); animation:liquidActivePulse 3.8s ease-in-out infinite; }
     .nav-item.nav-item-active i { color:#ffffff; }
     .sidebar-foot { padding:16px 18px 24px; border-top:1px solid var(--line-soft); color:#94a3b8; font-size:12px; line-height:1.5; text-align:center; min-height:90px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-    .workspace { flex:1; overflow:auto; padding:22px 24px; position:relative; }
+    .workspace { flex:1; height:100%; min-height:0; overflow:auto; padding:22px 24px; position:relative; display:flex; flex-direction:column; }
     .page-head h1 { margin:0; font-size:26px; font-weight:800; letter-spacing:.2px; color:#0f172a; }
     .page-head p { margin:6px 0 0; color:#475569; font-size:13px; }
     .section-content { margin-top:18px; }
@@ -330,11 +331,11 @@
     .liquid-focus { animation:liquidFocusPulse .42s ease-out; }
     @media (max-width:1080px) {
       body { overflow:auto; }
-      .app-shell { display:block; height:auto; min-height:100vh; }
-      .sidebar { width:100%; border-right:0; border-bottom:1px solid rgba(148,163,184,.25); box-shadow:none; }
+      .app-shell { display:block; height:auto; min-height:100dvh; overflow:visible; }
+      .sidebar { width:100%; height:auto; min-height:unset; border-right:0; border-bottom:1px solid rgba(148,163,184,.25); box-shadow:none; }
       .nav { display:flex; gap:6px; padding:10px; }
       .nav-item { border-left:0; border-radius:8px; height:44px; padding:0 12px; margin:0; }
-      .workspace { padding:14px; }
+      .workspace { height:auto; min-height:unset; display:block; padding:14px; }
       .grid-two,.two-card { grid-template-columns:1fr; gap:14px; }
       .feature-list { grid-template-columns:1fr; gap:12px; }
       .liquid-card-grid { grid-template-columns:1fr; }
@@ -388,7 +389,7 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-logo"><img src="build/icon.svg" alt="DTOLPK" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='build/icon.ico';}"></div>
+        <div class="brand-logo"><img src="assets/brand-logo.svg" alt="DTOLPK" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='build/icon.svg';}else{this.onerror=null;this.src='build/icon.ico';}"></div>
         <div>
           <div class="brand-title"></div>
           <div class="brand-meta">懒猫微服非官方打包工具</div>
