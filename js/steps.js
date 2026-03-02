@@ -749,6 +749,7 @@ class StepManager {
             // 图标上传区域点击/键盘事件
             const iconUploadZone = document.getElementById('icon-upload-zone');
             if (iconUploadZone) {
+                iconUploadZone.style.pointerEvents = 'auto';
                 iconUploadZone.addEventListener('click', (event) => {
                     if (event.target && event.target.closest('#remove-icon-btn')) {
                         return;
@@ -794,6 +795,9 @@ class StepManager {
             
             // 文件删除按钮事件
             bindIfExists('remove-icon-btn', (event) => {
+                if (event && typeof event.preventDefault === 'function') {
+                    event.preventDefault();
+                }
                 if (event && typeof event.stopPropagation === 'function') {
                     event.stopPropagation();
                 }
@@ -1259,8 +1263,22 @@ class StepManager {
 
         const zone = document.getElementById('icon-upload-zone');
         const img = document.getElementById('icon-upload-preview-img');
+        const tip = document.getElementById('icon-upload-tip');
         if (zone) zone.classList.remove('has-preview');
-        if (img) img.removeAttribute('src');
+        if (img) {
+            img.onload = null;
+            img.onerror = null;
+            img.style.width = '';
+            img.style.height = '';
+            img.removeAttribute('src');
+        }
+        if (tip) tip.textContent = '';
+    }
+
+    setIconUploadTip(text) {
+        const tip = document.getElementById('icon-upload-tip');
+        if (!tip) return;
+        tip.textContent = '';
     }
 
     normalizeIconPreviewSource(previewSrc) {
@@ -1269,9 +1287,9 @@ class StepManager {
         if (raw.startsWith('browser://')) return 'build/icon.svg';
         if (/^(https?:|data:|blob:|file:)/i.test(raw)) return raw;
         if (/^[a-zA-Z]:[\\/]/.test(raw)) {
-            return `file:///${raw.replace(/\\/g, '/')}`;
+            return encodeURI(`file:///${raw.replace(/\\/g, '/')}`);
         }
-        if (raw.startsWith('/')) return `file://${raw}`;
+        if (raw.startsWith('/')) return encodeURI(`file://${raw}`);
         return raw;
     }
 
@@ -1281,8 +1299,15 @@ class StepManager {
         if (!zone || !img || !previewSrc) return;
         const normalizedSrc = this.normalizeIconPreviewSource(previewSrc);
         if (!normalizedSrc) return;
+        img.onload = () => {
+            this.setIconUploadTip('');
+            zone.classList.add('has-preview');
+        };
+        img.onerror = () => {
+            zone.classList.remove('has-preview');
+            this.setIconUploadTip('');
+        };
         img.src = normalizedSrc;
-        zone.classList.add('has-preview');
     }
     
     // 选择图标文件
@@ -2300,9 +2325,17 @@ class StepManager {
     
     // 移除路由配置
     removeRoute(routeId) {
-        const routeItem = document.querySelector(`[data-route-id="${routeId}"]`);
-        if (routeItem) {
-            routeItem.remove();
+        try {
+            const routeItem = document.querySelector(`[data-route-id="${routeId}"]`);
+            if (routeItem) {
+                routeItem.remove();
+                this.showNotification('路由已删除', 'success');
+            } else {
+                this.showNotification('未找到待删除的路由', 'info');
+            }
+        } catch (error) {
+            console.error('删除路由失败:', error);
+            this.showNotification('删除路由失败', 'error');
         }
     }
     
@@ -2326,9 +2359,17 @@ class StepManager {
     
     // 移除环境变量
     removeEnvVariable(envId) {
-        const envItem = document.querySelector(`[data-env-id="${envId}"]`);
-        if (envItem) {
-            envItem.remove();
+        try {
+            const envItem = document.querySelector(`[data-env-id="${envId}"]`);
+            if (envItem) {
+                envItem.remove();
+                this.showNotification('环境变量已删除', 'success');
+            } else {
+                this.showNotification('未找到待删除的环境变量', 'info');
+            }
+        } catch (error) {
+            console.error('删除环境变量失败:', error);
+            this.showNotification('删除环境变量失败', 'error');
         }
     }
     
@@ -2363,9 +2404,17 @@ class StepManager {
     
     // 移除卷挂载
     removeVolume(volumeId) {
-        const volumeItem = document.querySelector(`[data-volume-id="${volumeId}"]`);
-        if (volumeItem) {
-            volumeItem.remove();
+        try {
+            const volumeItem = document.querySelector(`[data-volume-id="${volumeId}"]`);
+            if (volumeItem) {
+                volumeItem.remove();
+                this.showNotification('卷挂载已删除', 'success');
+            } else {
+                this.showNotification('未找到待删除的卷挂载', 'info');
+            }
+        } catch (error) {
+            console.error('删除卷挂载失败:', error);
+            this.showNotification('删除卷挂载失败', 'error');
         }
     }
     
@@ -2573,45 +2622,50 @@ services:
     
     // 显示通知
     showNotification(message, type) {
-        // 创建通知元素
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full`;
-        
-        // 设置通知样式
-        if (type === 'success') {
-            notification.className += ' bg-green-100 border border-green-200 text-green-800';
-        } else if (type === 'error') {
-            notification.className += ' bg-red-100 border border-red-200 text-red-800';
-        } else {
-            notification.className += ' bg-blue-100 border border-blue-200 text-blue-800';
+        const normalizedType = (type === 'success' || type === 'error' || type === 'info') ? type : 'info';
+        const iconName = normalizedType === 'success'
+            ? 'check-circle'
+            : normalizedType === 'error'
+                ? 'exclamation-circle'
+                : 'info-circle';
+
+        let container = document.getElementById('glass-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'glass-toast-container';
+            container.className = 'toast-container';
+            document.body.appendChild(container);
         }
-        
-        // 设置通知内容
+
+        const notification = document.createElement('div');
+        notification.className = `glass-toast glass-toast--${normalizedType}`;
+        notification.setAttribute('role', 'status');
+        notification.setAttribute('aria-live', 'polite');
         notification.innerHTML = `
-            <div class="flex items-center space-x-2">
-                <i class="fa fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-                <div>${message}</div>
-            </div>
+            <div class="glass-toast-icon"><i class="fa fa-${iconName}"></i></div>
+            <div class="glass-toast-text"></div>
         `;
-        
-        // 添加到页面
-        document.body.appendChild(notification);
-        
-        // 显示通知
+
+        const textEl = notification.querySelector('.glass-toast-text');
+        if (textEl) {
+            textEl.textContent = String(message || '');
+        }
+
+        container.appendChild(notification);
+        requestAnimationFrame(() => {
+            notification.classList.add('is-visible');
+        });
+
         setTimeout(() => {
-            notification.classList.remove('translate-x-full');
-        }, 100);
-        
-        // 3秒后隐藏通知
-        setTimeout(() => {
-            notification.classList.add('translate-x-full');
-            // 动画结束后移除元素
+            notification.classList.remove('is-visible');
             setTimeout(() => {
-                document.body.removeChild(notification);
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
             }, 300);
         }, 3000);
     }
-    
+
     // 显示打开目录对话框
     async showOpenDirectoryDialog(directory) {
         try {

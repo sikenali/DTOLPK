@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -50,6 +50,49 @@ if (parsedArgs.help) {
 // 保持对窗口对象的全局引用，防止被垃圾回收
 let mainWindow;
 const APP_USER_MODEL_ID = 'com.dtolpk.app';
+const LPK_ICON_MIN_SIZE = 512;
+const LPK_ICON_MAX_SIZE = 1024;
+const SUPPORTED_ICON_EXTENSIONS = new Set([
+    '.svg',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.bmp',
+    '.webp',
+    '.ico',
+    '.gif',
+    '.avif'
+]);
+
+async function normalizeLpkIcon(sourceIconPath, outputIconPath, fsExtra) {
+    const resolvedIconPath = path.resolve(String(sourceIconPath || '').trim());
+    if (!resolvedIconPath || !(await fsExtra.pathExists(resolvedIconPath))) {
+        throw new Error(`图标文件不存在: ${sourceIconPath || ''}`);
+    }
+
+    const ext = path.extname(resolvedIconPath).toLowerCase();
+    if (!SUPPORTED_ICON_EXTENSIONS.has(ext)) {
+        throw new Error(`不支持的图标格式: ${ext || 'unknown'}`);
+    }
+
+    const iconImage = nativeImage.createFromPath(resolvedIconPath);
+    if (iconImage.isEmpty()) {
+        throw new Error(`无法读取图标文件: ${sourceIconPath}`);
+    }
+
+    const size = iconImage.getSize();
+    const longestSide = Math.max(size.width || 0, size.height || 0);
+    const targetSize = Math.min(
+        LPK_ICON_MAX_SIZE,
+        Math.max(LPK_ICON_MIN_SIZE, longestSide || LPK_ICON_MIN_SIZE)
+    );
+    const resizeOptions = (size.width || 0) >= (size.height || 0)
+        ? { width: targetSize, quality: 'best' }
+        : { height: targetSize, quality: 'best' };
+
+    const normalizedIcon = iconImage.resize(resizeOptions);
+    await fsExtra.writeFile(outputIconPath, normalizedIcon.toPNG());
+}
 
 function resolveAppIconPath() {
     const candidates = [
@@ -502,7 +545,7 @@ ipcMain.handle('generate-lpk', async (event, { config, composeData }) => {
         
         // 复制图标文件
         const iconPath = path.join(tempDir, 'icon.png');
-        await fs.copy(config.resources.iconPath, iconPath);
+        await normalizeLpkIcon(config.resources.iconPath, iconPath, fs);
         
         // 创建符合懒猫微服要求的 Dockerfile
         // 使用应用名称作为基础镜像名称
