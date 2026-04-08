@@ -9,25 +9,31 @@ class StepManager {
     }
     
     init() {
-        // 初始化步骤状态
-        this.updateStepStatus();
-        
-        // 加载当前步骤数据
-        this.loadStepData(this.currentStep);
-        
         // 自动加载保存的 Dockerfile 和 docker-compose.yml 数据
         this.autoLoadSavedData();
         
         // 处理命令行参数
         this.handleCommandLineArgs();
         
-        // 确保DOM完全加载后再绑定事件监听器
+        // 确保DOM完全加载后再执行DOM相关操作
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
+                // 初始化步骤状态
+                this.updateStepStatus();
+                
+                // 加载当前步骤数据
+                this.loadStepData(this.currentStep);
+                
                 this.bindEvents();
                 this.ensureDefaultConfigItems();
             });
         } else {
+            // 初始化步骤状态
+            this.updateStepStatus();
+            
+            // 加载当前步骤数据
+            this.loadStepData(this.currentStep);
+            
             this.bindEvents();
             this.ensureDefaultConfigItems();
         }
@@ -714,13 +720,15 @@ class StepManager {
             };
             
             // 步骤导航点击事件 - 使用事件委托，绑定在父元素上，确保事件监听器始终有效
-            const stepsContainer = document.querySelector('.sidebar ul');
+            const stepsContainer = document.querySelector('.sidebar .nav');
             if (stepsContainer) {
                 console.log('找到步骤导航容器，绑定点击事件委托');
                 stepsContainer.addEventListener('click', (e) => {
-                    const stepItem = e.target.closest('.step-item');
+                    const stepItem = e.target.closest('.nav-item');
                     if (stepItem) {
-                        const step = parseInt(stepItem.dataset.step);
+                        // 获取导航项的索引作为步骤号
+                        const navItems = Array.from(stepsContainer.children);
+                        const step = navItems.indexOf(stepItem) + 1;
                         this.goToStep(step);
                     }
                 });
@@ -1122,13 +1130,24 @@ class StepManager {
         // 保存当前步骤数据
         this.saveStepData();
         
-        // 隐藏所有步骤内容
-        document.querySelectorAll('.step-content').forEach(content => {
+        // 步骤与section ID的映射
+        const sectionMap = {
+            1: 'select-project',
+            2: 'project-config',
+            3: 'generate-app'
+        };
+        
+        // 隐藏所有section
+        document.querySelectorAll('.section-content').forEach(content => {
             content.style.display = 'none';
         });
         
-        // 显示当前步骤内容
-        document.getElementById(`step-${step}`).style.display = 'block';
+        // 显示当前步骤对应的section
+        const sectionId = sectionMap[step] || sectionMap[1];
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.style.display = 'block';
+        }
         
         // 更新当前步骤
         this.currentStep = step;
@@ -1204,48 +1223,34 @@ class StepManager {
         };
         
         // 更新步骤导航状态
-        document.querySelectorAll('.step-item').forEach(item => {
-            const step = parseInt(item.dataset.step);
-            const menuItem = item.querySelector('div');
-            const iconContainer = item.querySelector('.w-9.h-9');
-            const icon = iconContainer.querySelector('i');
-            
-            // 根据步骤设置不同的图标
-            const iconMap = {
-                1: 'fa fa-info-circle',      // 应用信息
-                2: 'fa fa-cogs',             // 应用功能
-                3: 'fa fa-file-import',      // 资源配置
-                4: 'fa fa-network-wired',    // 路由配置
-                5: 'fa fa-docker',           // 镜像配置
-                6: 'fa fa-hammer',           // 构建配置
-                7: 'fa fa-sliders',          // 高级配置
-                8: 'fa fa-file-export'       // 生成 LPK
-            };
+        document.querySelectorAll('.nav-item').forEach((item, index) => {
+            const step = index + 1;
             
             if (step === this.currentStep) {
-                // 当前步骤 - 背景覆盖整个导航区域，使用较浅的蓝色
-                menuItem.className = 'flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 bg-blue-50';
-                iconContainer.className = 'w-9 h-9 flex items-center justify-center';
-                icon.className = `${iconMap[step]} text-blue-500`;
-                menuItem.querySelector('.font-medium').className = 'font-medium text-blue-700';
+                item.classList.add('nav-item-active');
             } else {
-                // 其他步骤
-                menuItem.className = 'flex items-center space-x-3 cursor-pointer p-3 transition-all duration-200 hover:bg-blue-50';
-                iconContainer.className = 'w-9 h-9 flex items-center justify-center';
-                icon.className = `${iconMap[step]} text-gray-600`;
-                menuItem.querySelector('.font-medium').className = 'font-medium text-gray-800';
+                item.classList.remove('nav-item-active');
             }
         });
         
         // 更新配置信息标题
-        document.getElementById('section-title').textContent = stepTitles[this.currentStep];
+        const sectionTitle = document.getElementById('section-title');
+        if (sectionTitle) {
+            sectionTitle.textContent = stepTitles[this.currentStep];
+        }
     }
     
     // 更新进度信息
     updateProgress() {
         const progress = (this.currentStep / this.totalSteps) * 100;
-        document.getElementById('progress-text').textContent = `${this.currentStep}/${this.totalSteps}`;
-        document.getElementById('progress-fill').style.width = `${progress}%`;
+        const progressText = document.getElementById('progress-text');
+        const progressFill = document.getElementById('progress-fill');
+        if (progressText) {
+            progressText.textContent = `${this.currentStep}/${this.totalSteps}`;
+        }
+        if (progressFill) {
+            progressFill.style.width = `${progress}%`;
+        }
     }
 
     isLikelyImagePath(filePath) {

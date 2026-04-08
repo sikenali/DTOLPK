@@ -142,7 +142,7 @@ function createWindow() {
     }
 
     // 开发环境下打开开发者工具
-    // mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
 
     // 窗口加载完成后，将命令行参数传递给渲染进程
     mainWindow.webContents.on('did-finish-load', () => {
@@ -253,6 +253,7 @@ ipcMain.handle('get-system-info', async (event) => {
 
 // 处理生成 LPK 包请求
 ipcMain.handle('generate-lpk', async (event, { config, composeData }) => {
+    let tempDir;
     try {
         const yaml = require('yaml');
         const archiver = require('archiver');
@@ -536,8 +537,19 @@ ipcMain.handle('generate-lpk', async (event, { config, composeData }) => {
             }
         
         // 创建临时目录
-        const tempDir = path.join(config.output.directory, `temp-${Date.now()}`);
-        await fs.ensureDir(tempDir);
+        try {
+            // 尝试在指定的输出目录中创建临时目录
+            tempDir = path.join(config.output.directory, `temp-${Date.now()}`);
+            await fs.ensureDir(tempDir);
+            console.log(`在指定目录创建临时目录: ${tempDir}`);
+        } catch (error) {
+            // 如果失败，使用当前目录作为fallback
+            console.error(`在指定目录创建临时目录失败: ${error.message}`);
+            console.log('使用当前目录作为fallback');
+            tempDir = path.join(process.cwd(), `temp-${Date.now()}`);
+            await fs.ensureDir(tempDir);
+            console.log(`在当前目录创建临时目录: ${tempDir}`);
+        }
         
         // 生成 manifest.yml 文件
         const manifestPath = path.join(tempDir, 'manifest.yml');
@@ -545,7 +557,7 @@ ipcMain.handle('generate-lpk', async (event, { config, composeData }) => {
         
         // 复制图标文件
         const iconPath = path.join(tempDir, 'icon.png');
-        await normalizeLpkIcon(config.resources.iconPath, iconPath, fs);
+        await fs.copy(config.resources.iconPath, iconPath);
         
         // 创建符合懒猫微服要求的 Dockerfile
         // 使用应用名称作为基础镜像名称
@@ -648,9 +660,6 @@ CMD ["sleep", "1d"]`;
         
         await archive.finalize();
         
-        // 清理临时文件
-        await fs.remove(tempDir);
-        
         return {
             success: true,
             lpkPath: lpkPath,
@@ -662,6 +671,17 @@ CMD ["sleep", "1d"]`;
             success: false,
             error: error.message
         };
+    } finally {
+        // 清理临时文件
+        try {
+            if (tempDir) {
+                const fs = require('fs-extra');
+                await fs.remove(tempDir);
+                console.log(`已清理临时目录: ${tempDir}`);
+            }
+        } catch (cleanupError) {
+            console.error('清理临时目录失败:', cleanupError);
+        }
     }
 });
 
