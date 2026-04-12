@@ -50,7 +50,9 @@ class LpkManager {
                     health_check: {
                         test_url: config.application.healthCheck.testUrl || '',
                         start_period: config.application.healthCheck.startPeriod || '90s',
-                        disable: true
+                        disable: config.application.healthCheck.disable !== undefined
+                            ? config.application.healthCheck.disable
+                            : true
                     },
                     handlers: {
                         error_page_templates: config.application.handlers.errorPageTemplates || {}

@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, nativeImage } = require('electron');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs-extra');
 const os = require('os');
 const { LpkManager } = require('./js/lpk');
 
@@ -272,7 +272,6 @@ ipcMain.handle('generate-lpk', async (event, { config, composeData }) => {
 
         // 加载执行目录下的 .env 文件
         try {
-            const fs = require('fs');
             const envPath = path.join(executionDir, '.env');
             if (fs.existsSync(envPath)) {
                 const parsed = dotenv.parse(fs.readFileSync(envPath));
@@ -505,24 +504,5 @@ ipcMain.handle('open-directory', async (event, directoryPath) => {
     }
 });
 
-// ⚠️ 已禁用：允许渲染进程执行任意 shell 命令存在严重安全风险
+// 注意：run-command IPC handler 已移除（安全风险：允许任意 shell 命令执行）
 // 如需要此功能，应实现命令白名单和参数校验
-// ipcMain.handle('run-command', async (event, { command, cwd }) => {
-//     try {
-//         const { exec } = require('child_process');
-//
-//         return new Promise((resolve) => {
-//             exec(command, { cwd: cwd || process.cwd() }, (error, stdout, stderr) => {
-//                 if (error) {
-//                     console.error('命令执行失败:', error);
-//                     resolve({ success: false, error: error.message, stderr: stderr });
-//                 } else {
-//                     resolve({ success: true, stdout: stdout });
-//                 }
-//             });
-//         });
-//     } catch (error) {
-//         console.error('运行命令时发生错误:', error);
-//         return { success: false, error: error.message };
-//     }
-// });

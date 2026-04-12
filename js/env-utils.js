@@ -49,21 +49,21 @@
 
     /**
      * 尝试将字符串值转换为合适的类型
-     * 如果字符串是纯数字，转换为数字
-     * 如果是 'true'/'false'，转换为布尔值
-     * 否则返回原字符串
+     * 注意：环境变量在 Docker/Compose 中通常是纯字符串，
+     * 此处仅对明确的布尔值和纯数字进行转换。
+     * 字符串 "0" 不会被转换为数字 0（避免 PORT=0 问题）。
      */
     function tryConvertType(value) {
         if (typeof value !== 'string') return value;
 
-        // 尝试转换为数字
-        if (/^-?\d+(\.\d+)?$/.test(value)) {
-            return value.includes('.') ? parseFloat(value) : parseInt(value, 10);
-        }
-
-        // 尝试转换为布尔值
+        // 尝试转换为布尔值（优先于数字转换）
         if (value === 'true') return true;
         if (value === 'false') return false;
+
+        // 仅对大于 0 的纯数字字符串进行转换，避免 "0" 被转换
+        if (/^[1-9]\d*$/.test(value)) {
+            return parseInt(value, 10);
+        }
 
         return value;
     }
@@ -76,14 +76,21 @@
      * @returns {Object} - 合并后的环境变量对象
      */
     function loadEnvFiles(executionDir, envFiles) {
+        // 仅在 Node.js 环境中执行（渲染进程中调用将返回空对象）
+        if (typeof require === 'undefined') {
+            console.warn('loadEnvFiles 只能在 Node.js 环境中调用');
+            return {};
+        }
+
         const env = {};
 
-        // 获取 dotenv 模块（仅在 Node.js 环境）
+        // 获取 dotenv 模块
         let dotenv;
         try {
-            dotenv = typeof require !== 'undefined' ? require('dotenv') : null;
+            dotenv = require('dotenv');
         } catch (e) {
-            dotenv = null;
+            console.warn('无法加载 dotenv 模块:', e.message);
+            return {};
         }
 
         // 加载执行目录下的 .env 文件

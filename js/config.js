@@ -589,50 +589,8 @@ class ConfigManager {
     
     // 重置配置
     resetConfig() {
-        // 重置为默认配置
-        this.config = {
-            app: {
-                name: '',
-                package: '',
-                version: '',
-                description: '',
-                homepage: '',
-                author: '',
-                unsupportedPlatforms: [],
-                hasVersionRequirement: false,
-                minOsVersion: '>= 1.0.18'
-            },
-            features: {
-                backgroundTask: false,
-                multiInstance: false,
-                publicPath: false,
-                gpuAccel: false,
-                kvmAccel: false,
-                usbAccel: false,
-                fileHandler: false
-            },
-            resources: {
-                iconPath: '',
-                composePath: ''
-            },
-            routes: [],
-            images: {
-                pushTarget: 'none',
-                registryUrl: '',
-                boxName: ''
-            },
-            build: {
-                context: '.',
-                dockerfile: ''
-            },
-            advanced: {
-                envVariables: [],
-                volumes: []
-            },
-            output: {
-                directory: ''
-            }
-        };
+        // 重置为默认配置（与 getDefaultConfig 保持一致）
+        this.config = this.getDefaultConfig();
         this.fillFormFromConfig();
         this.saveConfig();
     }
