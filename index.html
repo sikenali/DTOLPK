@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -459,6 +459,103 @@
               <label class="feature-row"><input id="feature-usb-accel" type="checkbox"><span><p class="feature-title">USB 设备挂载</p><p class="feature-desc">支持USB 设备挂载</p></span></label>
               <label class="feature-row"><input id="feature-file-handler" type="checkbox"><span><p class="feature-title">文件关联</p><p class="feature-desc">可以打开特定类型文件</p></span></label>
             </div>
+
+            <!-- 文件关联详细配置 -->
+            <div id="file-handler-detail-panel" style="display:none; margin-top:16px;">
+              <div class="panel" style="padding:16px;">
+                <div class="panel-title-row"><h3 class="panel-title" style="margin:0;">文件关联详细配置</h3></div>
+                <div class="field-group" style="margin-bottom:12px;">
+                  <label class="label" for="file-handler-mime">支持的 MIME 类型</label>
+                  <textarea id="file-handler-mime" class="field" placeholder="每行一个 MIME 类型，如：&#10;text/plain&#10;application/json&#10;audio/mpeg"></textarea>
+                </div>
+                <div class="field-group" style="margin-bottom:12px;">
+                  <label class="label" for="file-handler-action-open">打开文件路由</label>
+                  <input id="file-handler-action-open" class="field" type="text" placeholder="/open?file=%u">
+                </div>
+                <div class="field-group" style="margin-bottom:12px;">
+                  <label class="label" for="file-handler-action-new">新建文件路由（可选）</label>
+                  <input id="file-handler-action-new" class="field" type="text" placeholder="/new?file=%u">
+                </div>
+                <div class="field-group">
+                  <label class="label" for="file-handler-action-download">下载文件路由（可选）</label>
+                  <input id="file-handler-action-download" class="field" type="text" placeholder="/download?file=%u">
+                </div>
+              </div>
+            </div>
+
+            <!-- 健康检查配置 -->
+            <div id="health-check-panel" style="margin-top:16px;">
+              <div class="panel" style="padding:16px;">
+                <div class="panel-title-row"><h3 class="panel-title" style="margin:0;">健康检查配置</h3></div>
+                <div class="field-group" style="margin-bottom:12px;">
+                  <label class="label" for="health-check-test-url">健康检查 URL（可选）</label>
+                  <input id="health-check-test-url" class="field" type="url" placeholder="http://localhost:80/health">
+                </div>
+                <div class="field-group">
+                  <label class="label" for="health-check-start-period">启动等待时间</label>
+                  <input id="health-check-start-period" class="field" type="text" value="90s" placeholder="如 90s、30s">
+                </div>
+              </div>
+            </div>
+
+            <!-- 本地化配置 -->
+            <div id="locale-panel" style="margin-top:16px;">
+              <div class="panel" style="padding:16px;">
+                <div class="panel-title-row"><h3 class="panel-title" style="margin:0;">本地化配置</h3></div>
+                <div class="grid-two" style="gap:12px;">
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="locale-zh-name">中文名称</label>
+                    <input id="locale-zh-name" class="field" type="text" placeholder="应用中文名">
+                  </div>
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="locale-en-name">英文名称</label>
+                    <input id="locale-en-name" class="field" type="text" placeholder="应用英文名">
+                  </div>
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="locale-zh-desc">中文描述</label>
+                    <textarea id="locale-zh-desc" class="field" style="min-height:60px;" placeholder="应用中文描述"></textarea>
+                  </div>
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="locale-en-desc">英文描述</label>
+                    <textarea id="locale-en-desc" class="field" style="min-height:60px;" placeholder="应用英文描述"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 高级运行时配置 -->
+            <div id="advanced-runtime-panel" style="margin-top:16px;">
+              <div class="panel" style="padding:16px;">
+                <div class="panel-title-row"><h3 class="panel-title" style="margin:0;">高级运行时配置</h3></div>
+                <div class="grid-two" style="gap:12px;">
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="application-workdir">工作目录</label>
+                    <input id="application-workdir" class="field" type="text" value="/lzcapp/pkg/content/" placeholder="/lzcapp/pkg/content/">
+                  </div>
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="application-image">应用镜像名</label>
+                    <input id="application-image" class="field" type="text" placeholder="myapp:latest">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 错误页面模板 -->
+            <div id="error-template-panel" style="margin-top:16px;">
+              <div class="panel" style="padding:16px;">
+                <div class="panel-title-row"><h3 class="panel-title" style="margin:0;">错误页面模板</h3></div>
+                <div class="grid-two" style="gap:12px;">
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="error-template-404">404 模板路径</label>
+                    <input id="error-template-404" class="field" type="text" placeholder="/lzcapp/pkg/content/404.html">
+                  </div>
+                  <div class="field-group" style="margin-bottom:0;">
+                    <label class="label" for="error-template-502">502 模板路径</label>
+                    <input id="error-template-502" class="field" type="text" placeholder="/lzcapp/pkg/content/502.html">
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div id="route-config" class="tab-pane" style="display: none;">
@@ -517,11 +614,37 @@
               <label class="label" for="app-author">应用作者</label>
               <input id="app-author" class="field" type="text" placeholder="lazycat">
             </div>
+
+            <!-- 许可证配置 -->
+            <div id="app-license-group" class="field-group">
+              <label class="label" for="app-license">许可证</label>
+              <div class="liquid-select">
+                <select id="app-license" class="input-field">
+                  <option value="">不指定（默认 MIT）</option>
+                  <option value="https://choosealicense.com/licenses/mit/">MIT</option>
+                  <option value="https://choosealicense.com/licenses/apache-2.0/">Apache-2.0</option>
+                  <option value="https://choosealicense.com/licenses/gpl-3.0/">GPL-3.0</option>
+                  <option value="https://choosealicense.com/licenses/bsd-2-clause/">BSD-2-Clause</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </div>
+              <input id="app-license-custom" class="field" type="text" placeholder="自定义许可证 URL" style="display:none; margin-top:6px;">
+            </div>
+
             <div id="output-directory-group" class="field-group generate-output-field">
               <label class="label required" for="output-directory">生成应用存储路径</label>
               <div class="field-row">
                 <input id="output-directory" class="field" type="text" placeholder="生成应用存储路径">
                 <button id="select-output-dir-btn" type="button" class="content-action-btn" data-tip="选择目录" aria-label="选择生成应用目录"><i class="fa fa-plus"></i></button>
+              </div>
+            </div>
+
+            <!-- Dockerfile 输出路径（从隐藏区移出） -->
+            <div id="dockerfile-output-group" class="field-group">
+              <label class="label" for="dockerfile-output-path">Dockerfile 输出路径（可选）</label>
+              <div class="field-row">
+                <input id="dockerfile-output-path" class="field" type="text" placeholder="额外输出 Dockerfile 的目录">
+                <button id="select-dockerfile-output-btn" type="button" class="content-action-btn" data-tip="选择目录" aria-label="选择 Dockerfile 输出目录"><i class="fa fa-plus"></i></button>
               </div>
             </div>
             <div id="icon-upload-group" class="field-group">
@@ -534,6 +657,19 @@
               <div id="icon-upload-tip" class="helper"></div>
               <input id="icon-path" type="hidden" value="">
             </div>
+
+            <!-- 懒猫盒子名称配置 -->
+            <div id="lazycat-box-group" class="field-group" style="display:none;">
+              <label class="label" for="box-name">懒猫盒子名称</label>
+              <input id="box-name" class="field" type="text" value="default" placeholder="用于生成镜像仓库 URL，如 dev.{boxName}.heiyu.space">
+            </div>
+
+            <!-- 构建上下文配置 -->
+            <div id="build-context-group" class="field-group">
+              <label class="label" for="build-context">构建上下文</label>
+              <input id="build-context" class="field" type="text" value="." placeholder="构建上下文目录">
+            </div>
+
             <button id="start-convert-btn" type="button" class="btn-primary start-convert-btn"><i class="fa fa-play"></i> 生成</button>
           </div>
         </div>
@@ -542,12 +678,7 @@
 
       <div class="compat-hidden" aria-hidden="true">
         <div id="compose-files-list"></div>
-        <select id="push-target"><option value="none" selected>???</option><option value="custom">?????</option><option value="lazycat">??????????</option></select>
-        <input id="build-context" type="text" value=".">
-        <div id="custom-registry-field" style="display:none;"></div>
-        <div id="lazycat-box-field" style="display:none;"><input id="box-name" type="text" value="default"></div>
-        <input id="dockerfile-output-path" type="text" value="">
-        <button id="select-dockerfile-output-btn" type="button"></button>
+        <!-- push-target, box-name, build-context, dockerfile-output-path 已移至可见区域 -->
         <div id="section-title"></div><div id="progress-text"></div><div id="progress-fill"></div>
         <button id="save-config-btn" type="button"></button><button id="reset-config-btn" type="button"></button>
       </div>
@@ -566,29 +697,12 @@
     </div>
   </div>
 
-  <script>
-    (function () {
-      try {
-        localStorage.clear();
-        sessionStorage.clear();
-      } catch (e) {
-        console.warn('Failed to clear browser storage on startup:', e);
-      }
-    })();
-  </script>
   <script src="js/config.js"></script>
+  <script src="js/env-utils.js"></script>
+  <script src="js/lpk.js"></script>
   <script src="js/steps.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      window.addEventListener('beforeunload', function () {
-        try {
-          localStorage.clear();
-          sessionStorage.clear();
-        } catch (e) {
-          console.warn('Failed to clear browser storage on exit:', e);
-        }
-      });
-
       const applyLiquidTheme = function () {
         const hue = 186;
         const saturation = 55;
@@ -741,15 +855,7 @@
         const logInit = document.querySelector('#convert-log-placeholder');
         if (logInit) logInit.textContent = '等待开始转换...';
 
-        const pushTarget = document.getElementById('push-target');
-        if (pushTarget) {
-          const noneOpt = pushTarget.querySelector('option[value="none"]');
-          const customOpt = pushTarget.querySelector('option[value="custom"]');
-          const lazycatOpt = pushTarget.querySelector('option[value="lazycat"]');
-          if (noneOpt) noneOpt.textContent = '不推送';
-          if (customOpt) customOpt.textContent = '自定义仓库';
-          if (lazycatOpt) lazycatOpt.textContent = '懒猫盒子（官方仓库）';
-        }
+        // push-target 选项文本已在 HTML 中直接设置，无需 JS 动态替换
       };
 
       applyLocalizedText();
@@ -826,15 +932,37 @@
 
       const pushTarget = document.getElementById('push-target');
       const customRegistryField = document.getElementById('custom-registry-field');
-      const lazycatBoxField = document.getElementById('lazycat-box-field');
+      const lazycatBoxGroup = document.getElementById('lazycat-box-group');
       const syncPushTargetFields = function () {
-        if (!pushTarget || !customRegistryField || !lazycatBoxField) return;
-        customRegistryField.style.display = pushTarget.value === 'custom' ? 'block' : 'none';
-        lazycatBoxField.style.display = pushTarget.value === 'lazycat' ? 'block' : 'none';
+        if (!pushTarget) return;
+        if (customRegistryField) customRegistryField.style.display = pushTarget.value === 'custom' ? 'block' : 'none';
+        if (lazycatBoxGroup) lazycatBoxGroup.style.display = pushTarget.value === 'lazycat' ? 'block' : 'none';
       };
       if (pushTarget) {
         pushTarget.addEventListener('change', syncPushTargetFields);
         syncPushTargetFields();
+      }
+
+      // 许可证自定义字段显示/隐藏
+      const licenseSelect = document.getElementById('app-license');
+      const licenseCustomField = document.getElementById('app-license-custom');
+      if (licenseSelect && licenseCustomField) {
+        const syncLicenseField = function () {
+          licenseCustomField.style.display = licenseSelect.value === 'custom' ? 'block' : 'none';
+        };
+        licenseSelect.addEventListener('change', syncLicenseField);
+        syncLicenseField();
+      }
+
+      // 文件关联详细面板显示/隐藏
+      const fileHandlerCheckbox = document.getElementById('feature-file-handler');
+      const fileHandlerPanel = document.getElementById('file-handler-detail-panel');
+      if (fileHandlerCheckbox && fileHandlerPanel) {
+        const syncFileHandlerPanel = function () {
+          fileHandlerPanel.style.display = fileHandlerCheckbox.checked ? 'block' : 'none';
+        };
+        fileHandlerCheckbox.addEventListener('change', syncFileHandlerPanel);
+        syncFileHandlerPanel();
       }
 
       const setupLiquidMotion = function () {

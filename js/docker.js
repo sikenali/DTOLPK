@@ -172,7 +172,8 @@ class DockerManager {
         return volumes;
     }
     
-    // 构建镜像
+    // TODO: 实现真实的 Docker 镜像构建逻辑
+    // 当前为模拟实现，需要调用 Docker API 或执行 docker build 命令
     async buildImage(buildContext, dockerfile, tag) {
         // 这里应该调用 Docker API 或执行 docker build 命令
         // 目前只是模拟实现
@@ -187,7 +188,8 @@ class DockerManager {
         });
     }
     
-    // 推送镜像
+    // TODO: 实现真实的 Docker 镜像推送逻辑
+    // 当前为模拟实现，需要调用 Docker API 或执行 docker push 命令
     async pushImage(imageTag, registryUrl) {
         // 这里应该调用 Docker API 或执行 docker push 命令
         // 目前只是模拟实现
@@ -201,7 +203,8 @@ class DockerManager {
         });
     }
     
-    // 拉取镜像
+    // TODO: 实现真实的 Docker 镜像拉取逻辑
+    // 当前为模拟实现，需要调用 Docker API 或执行 docker pull 命令
     async pullImage(imageTag) {
         // 这里应该调用 Docker API 或执行 docker pull 命令
         // 目前只是模拟实现
@@ -215,7 +218,8 @@ class DockerManager {
         });
     }
     
-    // 标记镜像
+    // TODO: 实现真实的 Docker 镜像标记逻辑
+    // 当前为模拟实现，需要调用 Docker API 或执行 docker tag 命令
     async tagImage(sourceTag, targetTag) {
         // 这里应该调用 Docker API 或执行 docker tag 命令
         // 目前只是模拟实现

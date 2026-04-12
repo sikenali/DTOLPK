@@ -149,9 +149,11 @@ class ConfigManager {
                 description: getElementValue('app-description'),
                 homepage: getElementValue('app-homepage'),
                 author: getElementValue('app-author'),
+                license: this.getLicense(),
                 unsupportedPlatforms: this.getUnsupportedPlatforms(),
                 hasVersionRequirement: getElementChecked('has-version-requirement'),
-                minOsVersion: getElementValue('min-os-version', '>= 1.0.18')
+                minOsVersion: getElementValue('min-os-version', '>= 1.0.18'),
+                locales: this.getLocales()
             },
             features: {
                 backgroundTask: getElementChecked('feature-background-task'),
@@ -161,6 +163,22 @@ class ConfigManager {
                 kvmAccel: getElementChecked('feature-kvm-accel'),
                 usbAccel: getElementChecked('feature-usb-accel'),
                 fileHandler: getElementChecked('feature-file-handler')
+            },
+            application: {
+                workdir: getElementValue('application-workdir', '/lzcapp/pkg/content/'),
+                image: getElementValue('application-image'),
+                healthCheck: {
+                    testUrl: getElementValue('health-check-test-url'),
+                    startPeriod: getElementValue('health-check-start-period', '90s'),
+                    disable: false
+                },
+                handlers: {
+                    errorPageTemplates: {
+                        '404': getElementValue('error-template-404'),
+                        '502': getElementValue('error-template-502')
+                    }
+                },
+                fileHandler: this.getFileHandlerConfig()
             },
             resources: {
                 iconPath: getElementValue('icon-path'),
@@ -205,7 +223,13 @@ class ConfigManager {
         
         const appDescription = document.getElementById('app-description');
         if (appDescription) appDescription.value = this.config.app.description || '';
-        
+
+        // 填充许可证配置
+        if (this.config.app) this.fillLicense(this.config.app.license || '');
+
+        // 填充本地化配置
+        if (this.config.app) this.fillLocales(this.config.app.locales);
+
         // 填充资源选择
         const iconPath = document.getElementById('icon-path');
         if (iconPath) {
@@ -230,7 +254,46 @@ class ConfigManager {
         // 填充输出LPK目录
         const outputDirectory = document.getElementById('output-directory');
         if (outputDirectory) outputDirectory.value = this.config.output.directory || '';
-        
+
+        // 填充 Dockerfile 输出路径
+        const dockerfileOutputPath = document.getElementById('dockerfile-output-path');
+        if (dockerfileOutputPath) dockerfileOutputPath.value = this.config.output.dockerfilePath || '';
+
+        // 填充构建上下文
+        const buildContext = document.getElementById('build-context');
+        if (buildContext) buildContext.value = this.config.build.context || '.';
+
+        // 填充懒猫盒子名称
+        const boxName = document.getElementById('box-name');
+        if (boxName) boxName.value = this.config.images.boxName || 'default';
+
+        // 填充应用工作目录和镜像名
+        const appWorkdir = document.getElementById('application-workdir');
+        if (appWorkdir) appWorkdir.value = (this.config.application && this.config.application.workdir) || '/lzcapp/pkg/content/';
+        const appImage = document.getElementById('application-image');
+        if (appImage) appImage.value = (this.config.application && this.config.application.image) || '';
+
+        // 填充健康检查配置
+        if (this.config.application && this.config.application.healthCheck) {
+            const hcTestUrl = document.getElementById('health-check-test-url');
+            if (hcTestUrl) hcTestUrl.value = this.config.application.healthCheck.testUrl || '';
+            const hcStartPeriod = document.getElementById('health-check-start-period');
+            if (hcStartPeriod) hcStartPeriod.value = this.config.application.healthCheck.startPeriod || '90s';
+        }
+
+        // 填充错误页面模板
+        if (this.config.application && this.config.application.handlers && this.config.application.handlers.errorPageTemplates) {
+            const err404 = document.getElementById('error-template-404');
+            if (err404) err404.value = this.config.application.handlers.errorPageTemplates['404'] || '';
+            const err502 = document.getElementById('error-template-502');
+            if (err502) err502.value = this.config.application.handlers.errorPageTemplates['502'] || '';
+        }
+
+        // 填充文件关联详细配置
+        if (this.config.application && this.config.application.fileHandler) {
+            this.fillFileHandlerConfig(this.config.application.fileHandler);
+        }
+
         // 填充路由配置
         const routesContainer = document.getElementById('routes-container');
         if (routesContainer) {
@@ -271,7 +334,94 @@ class ConfigManager {
         document.getElementById('platform-macos').checked = platforms.includes('macos');
         document.getElementById('platform-tvos').checked = platforms.includes('tvos');
     }
-    
+
+    // 获取许可证配置
+    getLicense() {
+        const el = document.getElementById('app-license');
+        if (!el) return '';
+        const value = el.value;
+        if (value === 'custom') {
+            const customEl = document.getElementById('app-license-custom');
+            return customEl ? customEl.value : '';
+        }
+        return value;
+    }
+
+    // 填充许可证配置
+    fillLicense(value) {
+        const el = document.getElementById('app-license');
+        if (!el) return;
+        const knownLicenses = ['', 'https://choosealicense.com/licenses/mit/',
+            'https://choosealicense.com/licenses/apache-2.0/',
+            'https://choosealicense.com/licenses/gpl-3.0/',
+            'https://choosealicense.com/licenses/bsd-2-clause/'];
+        if (knownLicenses.includes(value)) {
+            el.value = value;
+            const customEL = document.getElementById('app-license-custom');
+            if (customEL) customEL.style.display = 'none';
+        } else if (value) {
+            el.value = 'custom';
+            const customEl = document.getElementById('app-license-custom');
+            if (customEl) { customEl.value = value; customEl.style.display = 'block'; }
+        }
+    }
+
+    // 获取本地化配置
+    getLocales() {
+        return {
+            zh: {
+                name: document.getElementById('locale-zh-name')?.value || '',
+                description: document.getElementById('locale-zh-desc')?.value || ''
+            },
+            en: {
+                name: document.getElementById('locale-en-name')?.value || '',
+                description: document.getElementById('locale-en-desc')?.value || ''
+            }
+        };
+    }
+
+    // 填充本地化配置
+    fillLocales(locales) {
+        if (!locales) return;
+        const zh = locales.zh || {};
+        const en = locales.en || {};
+        const zhName = document.getElementById('locale-zh-name');
+        if (zhName) zhName.value = zh.name || '';
+        const zhDesc = document.getElementById('locale-zh-desc');
+        if (zhDesc) zhDesc.value = zh.description || '';
+        const enName = document.getElementById('locale-en-name');
+        if (enName) enName.value = en.name || '';
+        const enDesc = document.getElementById('locale-en-desc');
+        if (enDesc) enDesc.value = en.description || '';
+    }
+
+    // 获取文件关联详细配置
+    getFileHandlerConfig() {
+        return {
+            mime: (document.getElementById('file-handler-mime')?.value || '')
+                .split('\n').map(l => l.trim()).filter(Boolean),
+            actions: {
+                open: document.getElementById('file-handler-action-open')?.value || '',
+                new: document.getElementById('file-handler-action-new')?.value || '',
+                download: document.getElementById('file-handler-action-download')?.value || ''
+            }
+        };
+    }
+
+    // 填充文件关联详细配置
+    fillFileHandlerConfig(fileHandler) {
+        if (!fileHandler) return;
+        const mimeEl = document.getElementById('file-handler-mime');
+        if (mimeEl) mimeEl.value = (fileHandler.mime || []).join('\n');
+        const actions = fileHandler.actions || {};
+        const openEl = document.getElementById('file-handler-action-open');
+        if (openEl) openEl.value = actions.open || '';
+        const newEl = document.getElementById('file-handler-action-new');
+        if (newEl) newEl.value = actions.new || '';
+        const downloadEl = document.getElementById('file-handler-action-download');
+        if (downloadEl) downloadEl.value = actions.download || '';
+    }
+
     // 获取路由配置
     getRoutes() {
         const routes = [];

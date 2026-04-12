@@ -46,8 +46,9 @@ if (process.argv.includes('--update')) {
         console.log('请手动执行: npm install -g docker2lzc@latest');
         process.exit(1);
     });
-    
-    return;
+
+    // 更新流程已启动，阻止后续代码执行
+    process.exit(0);
 }
 
 program.parse(process.argv);

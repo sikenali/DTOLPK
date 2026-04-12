@@ -48,9 +48,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // 打开目录 API
     openDirectory: (directoryPath) => ipcRenderer.invoke('open-directory', directoryPath),
-    
+
+    // ⚠️ 已禁用：允许渲染进程执行任意 shell 命令存在严重安全风险
     // 运行命令 API
-    runCommand: (data) => ipcRenderer.invoke('run-command', data)
+    // runCommand: (data) => ipcRenderer.invoke('run-command', data)
 });
 
 // 暴露必要的 Node.js 模块到渲染进程（仅在需要时）

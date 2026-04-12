@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, dialog, nativeImage } = require('electron')
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { LpkManager } = require('./js/lpk');
+
+// 初始化 LPK 管理器（用于生成 manifest）
+const lpkManager = new LpkManager();
 
 // 处理命令行参数
 const args = process.argv.slice(2);
@@ -80,17 +84,12 @@ async function normalizeLpkIcon(sourceIconPath, outputIconPath, fsExtra) {
         throw new Error(`无法读取图标文件: ${sourceIconPath}`);
     }
 
-    const size = iconImage.getSize();
-    const longestSide = Math.max(size.width || 0, size.height || 0);
-    const targetSize = Math.min(
-        LPK_ICON_MAX_SIZE,
-        Math.max(LPK_ICON_MIN_SIZE, longestSide || LPK_ICON_MIN_SIZE)
-    );
-    const resizeOptions = (size.width || 0) >= (size.height || 0)
-        ? { width: targetSize, quality: 'best' }
-        : { height: targetSize, quality: 'best' };
-
-    const normalizedIcon = iconImage.resize(resizeOptions);
+    // LPK 规范要求图标至少 512x512，强制输出正方形
+    const normalizedIcon = iconImage.resize({
+        width: LPK_ICON_MIN_SIZE,
+        height: LPK_ICON_MIN_SIZE,
+        quality: 'best'
+    });
     await fsExtra.writeFile(outputIconPath, normalizedIcon.toPNG());
 }
 
@@ -257,285 +256,61 @@ ipcMain.handle('generate-lpk', async (event, { config, composeData }) => {
     try {
         const yaml = require('yaml');
         const archiver = require('archiver');
-        const fs = require('fs-extra');
+        const fsExtra = require('fs-extra');
         const path = require('path');
         const tar = require('tar');
-        
-        // 生成 manifest.yml
-        const manifest = {
-            'lzc-sdk-version': '0.1',
-            name: config.app.name,
-            package: config.app.package,
-            version: config.app.version,
-            description: config.app.description,
-            homepage: config.app.homepage,
-            author: config.app.author,
-            application: {
-                subdomain: config.app.package.split('.').pop(),
-                background_task: config.features.backgroundTask,
-                multi_instance: config.features.multiInstance,
-                gpu_accel: config.features.gpuAccel,
-                kvm_accel: config.features.kvmAccel,
-                usb_accel: config.features.usbAccel,
-                // 禁用应用级别的健康检查，避免不必要的健康检查失败
-                health_check: {
-                    disable: true
+        const dotenv = require('dotenv');
+
+        // 加载 .env 文件和 env_file 配置
+        const envConfig = { ...process.env };
+
+        // 获取 compose 文件所在目录作为执行目录
+        const composePaths = config.resources.composePaths || [];
+        const executionDir = composePaths.length > 0
+            ? path.dirname(composePaths[0])
+            : process.cwd();
+
+        // 加载执行目录下的 .env 文件
+        try {
+            const fs = require('fs');
+            const envPath = path.join(executionDir, '.env');
+            if (fs.existsSync(envPath)) {
+                const parsed = dotenv.parse(fs.readFileSync(envPath));
+                Object.assign(envConfig, parsed);
+                console.log(`已加载 .env 文件: ${envPath}`);
+            }
+        } catch (error) {
+            console.warn('加载 .env 文件失败:', error.message);
+        }
+
+        // 加载 compose 数据中的 env_file 配置
+        if (composeData.services) {
+            for (const [serviceName, service] of Object.entries(composeData.services)) {
+                if (service.env_file) {
+                    const envFiles = Array.isArray(service.env_file) ? service.env_file : [service.env_file];
+                    for (const envFile of envFiles) {
+                        try {
+                            const resolvedFile = envFile.replace(/\$\{([^}]+)\}/g, (match, varName) => envConfig[varName] || '');
+                            const filePath = path.isAbsolute(resolvedFile)
+                                ? resolvedFile
+                                : path.resolve(executionDir, resolvedFile);
+
+                            if (fs.existsSync(filePath)) {
+                                const parsed = dotenv.parse(fs.readFileSync(filePath));
+                                Object.assign(envConfig, parsed);
+                                console.log(`已加载 env_file: ${filePath}`);
+                            }
+                        } catch (error) {
+                            console.warn(`加载 env_file ${envFile} 失败:`, error.message);
+                        }
+                    }
                 }
-            },
-            services: {}
-        };
-        
-        // 添加不支持的平台
-        if (config.app.unsupportedPlatforms && config.app.unsupportedPlatforms.length > 0) {
-            manifest.unsupported_platforms = config.app.unsupportedPlatforms;
-        }
-        
-        // 添加系统版本要求
-        if (config.app.hasVersionRequirement) {
-            manifest.min_os_version = config.app.minOsVersion;
-        }
-        
-        // 添加公开路由
-        if (config.features.publicPath && config.routes) {
-            const publicPaths = config.routes
-                .filter(route => route.type === 'http' || route.type === 'https')
-                .map(route => route.path);
-            
-            if (publicPaths.length > 0) {
-                manifest.application.public_path = publicPaths;
             }
         }
-        
-        // 添加文件关联
-        if (config.features.fileHandler) {
-            manifest.application.file_handler = {
-                mime: ['text/plain', 'application/json'],
-                actions: {
-                    open: '/open?file=%u'
-                }
-            };
-        }
-        
-        // 添加路由配置
-        let httpRoutes = [];
-        let ingressRoutes = [];
-        
-        if (config.routes && config.routes.length > 0) {
-            httpRoutes = config.routes
-                .filter(route => route.type === 'http' || route.type === 'https')
-                .map(route => {
-                    // 获取服务名称，确保跳过'app'服务（懒猫微服的保留名称）
-                    let serviceName = route.service;
-                    if (!serviceName) {
-                        // 从composeData.services中获取第一个非'app'的服务名称
-                        serviceName = Object.keys(composeData.services).find(name => name !== 'app') || Object.keys(composeData.services)[0];
-                    }
-                    // 对于HTTP/HTTPS路由，使用用户在界面上设置的实际端口
-                    // 根据懒猫微服官方文档，路由目标格式应为 http://service.package.lzcapp:port
-                    const targetPort = route.target || '80';
-                    // 直接使用原始服务名称，不转换为小写，符合懒猫微服官方示例
-                    const targetUrl = `http://${serviceName}.${config.app.package}.lzcapp:${targetPort}`;
-                    return `${route.path}=${targetUrl}`;
-                });
-            
-            ingressRoutes = config.routes
-                .filter(route => route.type === 'port')
-                .map(route => ({
-                    protocol: route.protocol || 'tcp',
-                    // 根据懒猫微服官方文档，端口号必须是整数
-                    port: parseInt(route.target),
-                    service: route.service || Object.keys(composeData.services)[0]
-                }));
-        }
-        
-        // 如果没有HTTP路由配置，添加默认的根路径路由
-        if (httpRoutes.length === 0 && composeData.services && Object.keys(composeData.services).length > 0) {
-            // 获取第一个非'app'的服务名称
-            let serviceName = Object.keys(composeData.services).find(name => name !== 'app') || Object.keys(composeData.services)[0];
-            // 根据懒猫微服官方文档，路由目标格式应为 http://service.package.lzcapp:port
-            // 直接使用原始服务名称，不转换为小写，符合懒猫微服官方示例
-            httpRoutes = [`/=http://${serviceName}.${config.app.package}.lzcapp:80`];
-        }
-        
-        if (httpRoutes.length > 0) {
-            manifest.application.routes = httpRoutes;
-        }
-        
-        if (ingressRoutes.length > 0) {
-            manifest.application.ingress = ingressRoutes;
-        }
-        
-        // 确保 application 对象存在必要的字段
-        if (!manifest.application.subdomain) {
-            // 根据懒猫微服官方文档，subdomain 应为包名的最后一部分
-            manifest.application.subdomain = config.app.package.split('.').pop();
-        }
-        
-        // 添加服务配置
-            if (composeData.services && typeof composeData.services === 'object') {
-                for (const [serviceName, service] of Object.entries(composeData.services)) {
-                    // 跳过名为'app'的服务，这是懒猫微服的保留名称
-                    if (serviceName === 'app') {
-                        continue;
-                    }
-                    
-                    // 直接使用原始服务名称，不转换为小写，符合懒猫微服官方示例
-                    let serviceConfig = {};
-                    
-                    // 根据镜像配置处理镜像
-                    if (config.images.pushTarget === 'lazycat') {
-                        // 懒猫微服官方仓库配置 - 直接使用用户输入的完整镜像地址
-                        const imageName = config.images.boxName || service.image || `temp-${serviceName}-${Date.now()}`;
-                        
-                        serviceConfig = {
-                            image: imageName,
-                            // 确保服务能够真正启动并监听端口
-                            // 只有当没有提供命令时，才添加默认命令
-                            command: service.command,
-                            // 确保服务在后台持续运行
-                            restart: 'always'
-                        };
-                    } else {
-                        // 其他镜像配置
-                        serviceConfig = {
-                            image: service.image || `temp-${serviceName}-${Date.now()}`,
-                            // 确保服务能够真正启动并监听端口
-                            command: service.command,
-                            // 确保服务在后台持续运行
-                            restart: 'always'
-                        };
-                    }
-                    
-                    // 确保服务配置中包含必要的字段
-                    if (!serviceConfig.command && service.image) {
-                        // 如果没有命令且有镜像，不添加默认的sleep命令，让服务使用镜像的默认命令
-                        delete serviceConfig.command;
-                    }
-                    
-                    // 添加环境变量
-                    if (service.environment) {
-                        if (Array.isArray(service.environment)) {
-                            serviceConfig.environment = service.environment;
-                        } else if (typeof service.environment === 'object') {
-                            serviceConfig.environment = Object.entries(service.environment)
-                                .map(([key, value]) => `${key}=${value}`);
-                        }
-                    }
-                    
-                    // 添加命令
-                    if (service.command) {
-                        if (Array.isArray(service.command)) {
-                            serviceConfig.command = service.command.join(' ');
-                        } else {
-                            serviceConfig.command = service.command;
-                        }
-                    }
-                    
-                    // 添加入口点
-                    if (service.entrypoint) {
-                        if (Array.isArray(service.entrypoint)) {
-                            serviceConfig.entrypoint = service.entrypoint.join(' ');
-                        } else {
-                            serviceConfig.entrypoint = service.entrypoint;
-                        }
-                    }
-                    
-                    // 添加依赖关系
-                    if (service.depends_on) {
-                        if (Array.isArray(service.depends_on)) {
-                            serviceConfig.depends_on = service.depends_on;
-                        } else if (typeof service.depends_on === 'object') {
-                            serviceConfig.depends_on = Object.keys(service.depends_on);
-                        }
-                    }
-                    
-                    // 添加卷挂载 - 确保使用/lzcapp开头的路径
-                    if (service.volumes && Array.isArray(service.volumes)) {
-                        serviceConfig.binds = [];
-                        
-                        for (const volume of service.volumes) {
-                            let bindMount;
-                            if (typeof volume === 'string') {
-                                // 处理字符串格式的卷挂载
-                                const parts = volume.split(':');
-                                if (parts.length >= 2) {
-                                    // 确保源路径以/lzcapp开头
-                                    let source = parts[0];
-                                    const target = parts.slice(1).join(':');
-                                    
-                                    // 如果源路径不是以/lzcapp开头，使用默认路径
-                                    if (source && !source.startsWith('/lzcapp')) {
-                                        // 根据卷的用途选择合适的/lzcapp子目录
-                                        if (source.includes('config')) {
-                                            source = `/lzcapp/var/${serviceName}/config`;
-                                        } else if (source.includes('log') || source.includes('logs')) {
-                                            source = `/lzcapp/var/${serviceName}/logs`;
-                                        } else if (source.includes('data')) {
-                                            source = `/lzcapp/var/${serviceName}/data`;
-                                        } else {
-                                            source = `/lzcapp/var/${serviceName}/${path.basename(source)}`;
-                                        }
-                                    }
-                                    
-                                    bindMount = `${source}:${target}`;
-                                } else {
-                                    bindMount = volume;
-                                }
-                            } else if (typeof volume === 'object' && volume.source && volume.target) {
-                                // 处理对象格式的卷挂载
-                                let source = volume.source;
-                                const target = volume.target;
-                                
-                                // 如果源路径不是以/lzcapp开头，使用默认路径
-                                if (source && !source.startsWith('/lzcapp')) {
-                                    // 根据卷的用途选择合适的/lzcapp子目录
-                                    if (source.includes('config')) {
-                                        source = `/lzcapp/var/${serviceName}/config`;
-                                    } else if (source.includes('log') || source.includes('logs')) {
-                                        source = `/lzcapp/var/${serviceName}/logs`;
-                                    } else if (source.includes('data')) {
-                                        source = `/lzcapp/var/${serviceName}/data`;
-                                    } else {
-                                        source = `/lzcapp/var/${serviceName}/${path.basename(source)}`;
-                                    }
-                                }
-                                
-                                bindMount = `${source}:${target}`;
-                            }
-                            
-                            if (bindMount) {
-                                serviceConfig.binds.push(bindMount);
-                            }
-                        }
-                    }
-                    
-                    // 添加健康检查
-                    if (service.healthcheck && typeof service.healthcheck === 'object') {
-                        const healthCheck = {};
-                        
-                        if (service.healthcheck.test) {
-                            healthCheck.test = service.healthcheck.test;
-                        }
-                        
-                        // 设置合理的默认值，避免健康检查过早失败
-                        healthCheck.start_period = service.healthcheck.start_period || '90s';
-                        healthCheck.interval = service.healthcheck.interval || '30s';
-                        healthCheck.timeout = service.healthcheck.timeout || '10s';
-                        healthCheck.retries = service.healthcheck.retries || 5;
-                        
-                        serviceConfig.health_check = healthCheck;
-                    } else {
-                        // 如果没有健康检查配置，添加默认配置或禁用健康检查
-                        // 禁用健康检查以避免不必要的健康检查失败
-                        serviceConfig.health_check = {
-                            disable: true
-                        };
-                    }
-                    
-                    manifest.services[serviceName] = serviceConfig;
-                }
-            }
-        
+
+        // 使用统一的 LpkManager 生成 manifest（传入 envConfig）
+        const manifest = lpkManager.generateManifest(config, composeData, envConfig);
+
         // 创建临时目录
         try {
             // 尝试在指定的输出目录中创建临时目录
@@ -543,12 +318,12 @@ ipcMain.handle('generate-lpk', async (event, { config, composeData }) => {
             await fs.ensureDir(tempDir);
             console.log(`在指定目录创建临时目录: ${tempDir}`);
         } catch (error) {
-            // 如果失败，使用当前目录作为fallback
+            // 如果失败，使用系统临时目录作为 fallback
             console.error(`在指定目录创建临时目录失败: ${error.message}`);
-            console.log('使用当前目录作为fallback');
-            tempDir = path.join(process.cwd(), `temp-${Date.now()}`);
+            console.log('使用系统临时目录作为 fallback');
+            tempDir = path.join(os.tmpdir(), `dtolpk-temp-${Date.now()}`);
             await fs.ensureDir(tempDir);
-            console.log(`在当前目录创建临时目录: ${tempDir}`);
+            console.log(`创建临时目录: ${tempDir}`);
         }
         
         // 生成 manifest.yml 文件
@@ -579,11 +354,10 @@ CMD ["sleep", "1d"]`;
         
         // 创建 content.tar
         const contentTarPath = path.join(tempDir, 'content.tar');
-        
-        // 获取Docker Compose文件路径，支持多个文件
-        const composePaths = config.resources.composePaths || [];
+
+        // 获取Docker Compose文件路径，支持多个文件（已在前面声明）
         let composeDir;
-        
+
         if (composePaths.length > 0) {
             // 使用第一个Docker Compose文件的目录作为基础目录
             composeDir = path.dirname(composePaths[0]);
@@ -731,23 +505,24 @@ ipcMain.handle('open-directory', async (event, directoryPath) => {
     }
 });
 
-// 处理运行命令请求
-ipcMain.handle('run-command', async (event, { command, cwd }) => {
-    try {
-        const { exec } = require('child_process');
-        
-        return new Promise((resolve) => {
-            exec(command, { cwd: cwd || process.cwd() }, (error, stdout, stderr) => {
-                if (error) {
-                    console.error('命令执行失败:', error);
-                    resolve({ success: false, error: error.message, stderr: stderr });
-                } else {
-                    resolve({ success: true, stdout: stdout });
-                }
-            });
-        });
-    } catch (error) {
-        console.error('运行命令时发生错误:', error);
-        return { success: false, error: error.message };
-    }
-});
+// ⚠️ 已禁用：允许渲染进程执行任意 shell 命令存在严重安全风险
+// 如需要此功能，应实现命令白名单和参数校验
+// ipcMain.handle('run-command', async (event, { command, cwd }) => {
+//     try {
+//         const { exec } = require('child_process');
+//
+//         return new Promise((resolve) => {
+//             exec(command, { cwd: cwd || process.cwd() }, (error, stdout, stderr) => {
+//                 if (error) {
+//                     console.error('命令执行失败:', error);
+//                     resolve({ success: false, error: error.message, stderr: stderr });
+//                 } else {
+//                     resolve({ success: true, stdout: stdout });
+//                 }
+//             });
+//         });
+//     } catch (error) {
+//         console.error('运行命令时发生错误:', error);
+//         return { success: false, error: error.message };
+//     }
+// });

@@ -1,16 +1,34 @@
-// LPK 生成模块
+// LPK 生成模块 - 同时支持 Node.js 和浏览器环境
+(function (root, factory) {
+    if (typeof module !== 'undefined' && module.exports) {
+        // Node.js 环境
+        module.exports = factory();
+    } else {
+        // 浏览器环境
+        root.LpkManager = factory();
+    }
+})(typeof self !== 'undefined' ? self : this, function () {
+
 class LpkManager {
     constructor() {
         this.init();
     }
-    
+
     init() {
         // 初始化 LPK 相关配置
     }
-    
+
     // 生成 manifest.yml
-    generateManifest(config, composeData) {
+    generateManifest(config, composeData, envConfig) {
         try {
+            // 在 Node.js 环境中获取 path 模块
+            const path = typeof require !== 'undefined' ? require('path') : null;
+
+            // 获取环境变量处理工具
+            const { processEnvVariables } = typeof EnvUtils !== 'undefined'
+                ? EnvUtils
+                : (typeof require !== 'undefined' ? require('./env-utils') : { processEnvVariables: (s) => s });
+
             const manifest = {
                 'lzc-sdk-version': '0.1',
                 name: config.app.name,
@@ -77,18 +95,7 @@ class LpkManager {
             if (config.app.locales && Object.keys(config.app.locales).length > 0) {
                 manifest.locales = config.app.locales;
             }
-            
-            // 添加public_path配置
-            if (config.features.publicPath && config.routes) {
-                const publicPaths = config.routes
-                    .filter(route => route.type === 'http' || route.type === 'https')
-                    .map(route => `${route.path}public`);
-                
-                if (publicPaths.length > 0) {
-                    manifest.application.public_path = publicPaths;
-                }
-            }
-            
+
             // 添加路由配置
             if (config.routes && config.routes.length > 0) {
                 const applicationRoutes = config.routes
@@ -138,140 +145,237 @@ class LpkManager {
                     if (serviceName === 'app') {
                         continue;
                     }
-                    
+
+                    // 处理服务名中的环境变量
+                    const processedName = processEnvVariables(serviceName, envConfig);
+
                     const serviceConfig = {
-                        image: service.image || `temp-${serviceName}-${Date.now()}`
+                        image: processEnvVariables(service.image || `temp-${serviceName}-${Date.now()}`, envConfig)
                     };
-                    
-                    // 添加环境变量
+
+                    // 添加环境变量（应用变量替换）
                     if (service.environment) {
                         if (Array.isArray(service.environment)) {
-                            serviceConfig.environment = service.environment;
+                            serviceConfig.environment = service.environment
+                                .map(env => processEnvVariables(env, envConfig));
                         } else {
                             serviceConfig.environment = Object.entries(service.environment)
-                                .map(([key, value]) => `${key}=${value}`);
+                                .map(([key, value]) => `${processEnvVariables(key, envConfig)}=${processEnvVariables(value, envConfig)}`);
                         }
                     }
-                    
-                    // 添加命令
+
+                    // 添加命令（应用变量替换）
                     if (service.command) {
                         if (Array.isArray(service.command)) {
-                            serviceConfig.command = service.command.join(' ');
+                            serviceConfig.command = service.command
+                                .map(cmd => processEnvVariables(cmd, envConfig))
+                                .join(' ');
                         } else {
-                            serviceConfig.command = service.command;
+                            serviceConfig.command = processEnvVariables(service.command, envConfig);
                         }
                     }
-                    
-                    // 添加入口点
+
+                    // 添加入口点（应用变量替换）
                     if (service.entrypoint) {
                         if (Array.isArray(service.entrypoint)) {
-                            serviceConfig.entrypoint = service.entrypoint.join(' ');
+                            serviceConfig.entrypoint = service.entrypoint
+                                .map(entry => processEnvVariables(entry, envConfig))
+                                .join(' ');
                         } else {
-                            serviceConfig.entrypoint = service.entrypoint;
+                            serviceConfig.entrypoint = processEnvVariables(service.entrypoint, envConfig);
                         }
                     }
-                    
-                    // 添加依赖关系
+
+                    // 添加依赖关系（应用变量替换）
                     if (service.depends_on) {
                         if (Array.isArray(service.depends_on)) {
-                            serviceConfig.depends_on = service.depends_on;
+                            serviceConfig.depends_on = service.depends_on
+                                .map(dep => processEnvVariables(dep, envConfig));
                         } else {
-                            serviceConfig.depends_on = Object.keys(service.depends_on);
+                            serviceConfig.depends_on = Object.keys(service.depends_on)
+                                .map(dep => processEnvVariables(dep, envConfig));
                         }
                     }
-                    
-                    // 添加卷挂载 - 确保使用/lzcapp开头的路径
+
+                    // 添加卷挂载 - 智能处理各种格式
                     if (service.volumes) {
                         serviceConfig.binds = [];
-                        
+
                         for (const volume of service.volumes) {
-                            let bindMount;
-                            if (typeof volume === 'string') {
-                                // 处理字符串格式的卷挂载
-                                const parts = volume.split(':');
-                                if (parts.length >= 2) {
-                                    // 确保源路径以/lzcapp开头
-                                    let source = parts[0];
-                                    const target = parts.slice(1).join(':');
-                                    
-                                    // 如果源路径不是以/lzcapp开头，使用默认路径
-                                    if (!source.startsWith('/lzcapp')) {
-                                        // 根据卷的用途选择合适的/lzcapp子目录
-                                        if (source.includes('config')) {
-                                            source = `/lzcapp/var/${serviceName}/config`;
-                                        } else if (source.includes('log') || source.includes('logs')) {
-                                            source = `/lzcapp/var/${serviceName}/logs`;
-                                        } else if (source.includes('data')) {
-                                            source = `/lzcapp/var/${serviceName}/data`;
-                                        } else {
-                                            source = `/lzcapp/var/${serviceName}/${path.basename(source)}`;
-                                        }
-                                    }
-                                    
-                                    bindMount = `${source}:${target}`;
-                                } else {
-                                    bindMount = volume;
-                                }
-                            } else if (typeof volume === 'object') {
-                                // 处理对象格式的卷挂载
-                                let source = volume.source;
-                                const target = volume.target;
-                                
-                                // 如果源路径不是以/lzcapp开头，使用默认路径
-                                if (!source.startsWith('/lzcapp')) {
-                                    // 根据卷的用途选择合适的/lzcapp子目录
-                                    if (source.includes('config')) {
-                                        source = `/lzcapp/var/${serviceName}/config`;
-                                    } else if (source.includes('log') || source.includes('logs')) {
-                                        source = `/lzcapp/var/${serviceName}/logs`;
-                                    } else if (source.includes('data')) {
-                                        source = `/lzcapp/var/${serviceName}/data`;
-                                    } else {
-                                        source = `/lzcapp/var/${serviceName}/${path.basename(source)}`;
-                                    }
-                                }
-                                
-                                bindMount = `${source}:${target}`;
+                            // 剥离注释
+                            const volumeStr = typeof volume === 'string' ? volume.split('#')[0].trim() : null;
+                            if (!volumeStr) continue;
+
+                            let bindMount = this.processVolumeMount(processedName, volumeStr || volume, envConfig, path);
+                            if (bindMount) {
+                                serviceConfig.binds.push(bindMount);
                             }
-                            
-                            serviceConfig.binds.push(bindMount);
                         }
                     }
-                    
-                    // 添加健康检查
+
+                    // 添加健康检查配置
                     if (service.healthcheck) {
-                        const healthCheck = {};
-                        
-                        if (service.healthcheck.test) {
-                            healthCheck.test = service.healthcheck.test;
+                        if (service.healthcheck.disable === true) {
+                            serviceConfig.health_check = { disable: true };
+                        } else {
+                            const healthCheck = {};
+
+                            if (service.healthcheck.test) {
+                                if (Array.isArray(service.healthcheck.test)) {
+                                    healthCheck.test = service.healthcheck.test
+                                        .map(cmd => processEnvVariables(cmd, envConfig));
+                                } else if (typeof service.healthcheck.test === 'string') {
+                                    healthCheck.test = [processEnvVariables(service.healthcheck.test, envConfig)];
+                                }
+                            }
+
+                            // 处理 start_period（支持数字和字符串格式）
+                            if (service.healthcheck.start_period) {
+                                const startPeriod = service.healthcheck.start_period;
+                                healthCheck.start_period = typeof startPeriod === 'number'
+                                    ? `${startPeriod}s`
+                                    : processEnvVariables(startPeriod, envConfig);
+                            }
+
+                            // 处理 test_url（扩展配置）
+                            if (service.healthcheck.test_url) {
+                                healthCheck.test_url = processEnvVariables(service.healthcheck.test_url, envConfig);
+                            }
+
+                            serviceConfig.health_check = healthCheck;
                         }
-                        
-                        // 设置合理的默认值，避免健康检查过早失败
-                        healthCheck.start_period = service.healthcheck.start_period || '90s';
-                        healthCheck.interval = service.healthcheck.interval || '30s';
-                        healthCheck.timeout = service.healthcheck.timeout || '10s';
-                        healthCheck.retries = service.healthcheck.retries || 5;
-                        
-                        serviceConfig.health_check = healthCheck;
-                    } else {
-                        // 如果没有健康检查配置，添加默认配置或禁用健康检查
-                        // 禁用健康检查以避免不必要的健康检查失败
-                        serviceConfig.health_check = {
-                            disable: true
-                        };
                     }
-                    
-                    manifest.services[serviceName] = serviceConfig;
+
+                    manifest.services[processedName] = serviceConfig;
                 }
             }
-            
+
             return manifest;
         } catch (error) {
             console.error('生成 manifest.yml 失败:', error);
             throw error;
         }
     }
-    
+
+    /**
+     * 处理卷挂载，支持匿名卷、命名卷、相对路径等
+     * 对齐 CLI 的 promptMountLocation 逻辑
+     */
+    processVolumeMount(serviceName, volume, envConfig, path) {
+        const { processEnvVariables } = typeof EnvUtils !== 'undefined'
+            ? EnvUtils
+            : (typeof require !== 'undefined' ? require('./env-utils') : { processEnvVariables: (s) => s });
+
+        // 处理环境变量替换
+        const processedVolume = typeof volume === 'string'
+            ? processEnvVariables(volume, envConfig)
+            : volume;
+
+        if (!processedVolume) return null;
+
+        // 处理对象格式的卷挂载
+        if (typeof processedVolume === 'object') {
+            let source = processedVolume.source || '';
+            const target = processedVolume.target;
+
+            if (!target) return null;
+
+            // 处理波浪号展开
+            if (source.startsWith('~')) {
+                source = source.replace('~', typeof process !== 'undefined' ? (process.env.HOME || process.env.USERPROFILE || '') : '');
+            }
+
+            // 检测是否是命名卷（不以 ./、../、/ 开头的非路径格式）
+            const isNamedVolume = source && !source.startsWith('./') && !source.startsWith('../') &&
+                !source.startsWith('/') && !source.startsWith('~') &&
+                !(path && path.isAbsolute && path.isAbsolute(source));
+
+            if (isNamedVolume) {
+                // 命名卷映射到 /lzcapp/var
+                return `/lzcapp/var/${source}:${target}`;
+            }
+
+            // 相对路径或绝对路径，转换为 content 路径
+            if (source && (source.startsWith('./') || source.startsWith('../'))) {
+                // 相对路径转换为 /lzcapp/pkg/content/ 下的路径
+                const posixPath = source.replace(/\\/g, '/');
+                return `/lzcapp/pkg/content/${posixPath}:${target}`;
+            }
+
+            // 已有 /lzcapp 开头的路径，直接使用
+            if (source.startsWith('/lzcapp')) {
+                return `${source}:${target}`;
+            }
+
+            // 其他情况，根据路径关键词选择合适的 /lzcapp 子目录
+            let mappedSource;
+            if (source.includes('config')) {
+                mappedSource = `/lzcapp/var/${serviceName}/config`;
+            } else if (source.includes('log') || source.includes('logs')) {
+                mappedSource = `/lzcapp/var/${serviceName}/logs`;
+            } else if (source.includes('data')) {
+                mappedSource = `/lzcapp/var/${serviceName}/data`;
+            } else {
+                mappedSource = path ? `/lzcapp/var/${serviceName}/${path.basename(source)}` : `/lzcapp/var/${serviceName}/data`;
+            }
+            return `${mappedSource}:${target}`;
+        }
+
+        // 处理字符串格式的卷挂载
+        if (typeof processedVolume === 'string') {
+            const parts = processedVolume.split(':');
+
+            if (parts.length === 1) {
+                // 匿名卷（如 /data），映射到 /lzcapp/var
+                const target = parts[0];
+                return `/lzcapp/var/${serviceName}/${target.replace(/^\//, '')}:${target}`;
+            }
+
+            let source = parts[0];
+            const target = parts.slice(1).join(':');
+
+            // 处理波浪号展开
+            if (source.startsWith('~')) {
+                source = source.replace('~', typeof process !== 'undefined' ? (process.env.HOME || process.env.USERPROFILE || '') : '');
+            }
+
+            // 检测是否是命名卷
+            const isNamedVolume = source && !source.startsWith('./') && !source.startsWith('../') &&
+                !source.startsWith('/') && !source.startsWith('~') &&
+                !(path && path.isAbsolute && path.isAbsolute(source));
+
+            if (isNamedVolume) {
+                return `/lzcapp/var/${source}:${target}`;
+            }
+
+            // 相对路径转换为 content 路径
+            if (source && (source.startsWith('./') || source.startsWith('../'))) {
+                const posixPath = source.replace(/\\/g, '/');
+                return `/lzcapp/pkg/content/${posixPath}:${target}`;
+            }
+
+            // 已有 /lzcapp 开头的路径，直接使用
+            if (source && source.startsWith('/lzcapp')) {
+                return `${source}:${target}`;
+            }
+
+            // 其他情况，根据路径关键词选择合适的 /lzcapp 子目录
+            let mappedSource;
+            if (source && source.includes('config')) {
+                mappedSource = `/lzcapp/var/${serviceName}/config`;
+            } else if (source && (source.includes('log') || source.includes('logs'))) {
+                mappedSource = `/lzcapp/var/${serviceName}/logs`;
+            } else if (source && source.includes('data')) {
+                mappedSource = `/lzcapp/var/${serviceName}/data`;
+            } else {
+                mappedSource = path && source ? `/lzcapp/var/${serviceName}/${path.basename(source)}` : `/lzcapp/var/${serviceName}/data`;
+            }
+            return `${mappedSource}:${target}`;
+        }
+
+        return null;
+    }
+
     // 生成 manifest.yml 字符串
     generateManifestYaml(config, composeData) {
         const manifest = this.generateManifest(config, composeData);
@@ -408,4 +512,12 @@ class LpkManager {
 }
 
 // 初始化 LPK 管理器
-const lpkManager = new LpkManager();
+const lpkManagerInstance = new LpkManager();
+
+// 导出以支持 Node.js 和浏览器环境
+return {
+    LpkManager,
+    lpkManager: lpkManagerInstance
+};
+
+});

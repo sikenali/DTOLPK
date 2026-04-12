@@ -642,11 +642,13 @@ class StepManager {
             if (!window.electronAPI || typeof window.electronAPI.readFile !== 'function') {
                 return;
             }
-            
-            // 检查文件是否存在
-            const fs = require('fs');
-            if (!fs.existsSync(filePath)) {
-                return;
+
+            // 检查文件是否存在（使用 IPC 而不是直接 require('fs')）
+            if (window.electronAPI && typeof window.electronAPI.isFile === 'function') {
+                const fileCheckResult = await window.electronAPI.isFile(filePath);
+                if (!fileCheckResult || !fileCheckResult.isFile) {
+                    return;
+                }
             }
             
             // 读取文件内容
