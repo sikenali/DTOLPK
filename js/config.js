@@ -71,11 +71,6 @@ class ConfigManager {
             application: {
                 workdir: '/lzcapp/pkg/content/',
                 image: '',
-                healthCheck: {
-                    testUrl: '',
-                    startPeriod: '90s',
-                    disable: false
-                },
                 handlers: {
                     errorPageTemplates: {
                         '502': '',
@@ -167,11 +162,6 @@ class ConfigManager {
             application: {
                 workdir: getElementValue('application-workdir', '/lzcapp/pkg/content/'),
                 image: getElementValue('application-image'),
-                healthCheck: {
-                    testUrl: getElementValue('health-check-test-url'),
-                    startPeriod: getElementValue('health-check-start-period', '90s'),
-                    disable: false
-                },
                 handlers: {
                     errorPageTemplates: {
                         '404': getElementValue('error-template-404'),
@@ -259,10 +249,6 @@ class ConfigManager {
         const dockerfileOutputPath = document.getElementById('dockerfile-output-path');
         if (dockerfileOutputPath) dockerfileOutputPath.value = this.config.output.dockerfilePath || '';
 
-        // 填充构建上下文
-        const buildContext = document.getElementById('build-context');
-        if (buildContext) buildContext.value = this.config.build.context || '.';
-
         // 填充懒猫盒子名称
         const boxName = document.getElementById('box-name');
         if (boxName) boxName.value = this.config.images.boxName || 'default';
@@ -272,22 +258,6 @@ class ConfigManager {
         if (appWorkdir) appWorkdir.value = (this.config.application && this.config.application.workdir) || '/lzcapp/pkg/content/';
         const appImage = document.getElementById('application-image');
         if (appImage) appImage.value = (this.config.application && this.config.application.image) || '';
-
-        // 填充健康检查配置
-        if (this.config.application && this.config.application.healthCheck) {
-            const hcTestUrl = document.getElementById('health-check-test-url');
-            if (hcTestUrl) hcTestUrl.value = this.config.application.healthCheck.testUrl || '';
-            const hcStartPeriod = document.getElementById('health-check-start-period');
-            if (hcStartPeriod) hcStartPeriod.value = this.config.application.healthCheck.startPeriod || '90s';
-        }
-
-        // 填充错误页面模板
-        if (this.config.application && this.config.application.handlers && this.config.application.handlers.errorPageTemplates) {
-            const err404 = document.getElementById('error-template-404');
-            if (err404) err404.value = this.config.application.handlers.errorPageTemplates['404'] || '';
-            const err502 = document.getElementById('error-template-502');
-            if (err502) err502.value = this.config.application.handlers.errorPageTemplates['502'] || '';
-        }
 
         // 填充文件关联详细配置
         if (this.config.application && this.config.application.fileHandler) {
@@ -337,32 +307,52 @@ class ConfigManager {
 
     // 获取许可证配置
     getLicense() {
-        const el = document.getElementById('app-license');
-        if (!el) return '';
-        const value = el.value;
-        if (value === 'custom') {
+        const checkboxes = document.querySelectorAll('input[name="app-license"]');
+        if (!checkboxes.length) return 'https://choosealicense.com/licenses/mit/';
+        
+        let selectedLicense = '';
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                selectedLicense = checkbox.value;
+            }
+        });
+        
+        if (selectedLicense === 'custom') {
             const customEl = document.getElementById('app-license-custom');
             return customEl ? customEl.value : '';
         }
-        return value;
+        return selectedLicense || 'https://choosealicense.com/licenses/mit/';
     }
 
     // 填充许可证配置
     fillLicense(value) {
-        const el = document.getElementById('app-license');
-        if (!el) return;
-        const knownLicenses = ['', 'https://choosealicense.com/licenses/mit/',
+        const checkboxes = document.querySelectorAll('input[name="app-license"]');
+        if (!checkboxes.length) return;
+        
+        const knownLicenses = ['https://choosealicense.com/licenses/mit/',
             'https://choosealicense.com/licenses/apache-2.0/',
             'https://choosealicense.com/licenses/gpl-3.0/',
             'https://choosealicense.com/licenses/bsd-2-clause/'];
-        if (knownLicenses.includes(value)) {
-            el.value = value;
-            const customEL = document.getElementById('app-license-custom');
-            if (customEL) customEL.style.display = 'none';
-        } else if (value) {
-            el.value = 'custom';
-            const customEl = document.getElementById('app-license-custom');
+        
+        let found = false;
+        checkboxes.forEach(checkbox => {
+            if (checkbox.value === value) {
+                checkbox.checked = true;
+                found = true;
+            } else if (knownLicenses.includes(checkbox.value)) {
+                checkbox.checked = false;
+            }
+        });
+        
+        const customCheckbox = document.querySelector('input[name="app-license"][value="custom"]');
+        const customEl = document.getElementById('app-license-custom');
+        
+        if (!found && value) {
+            if (customCheckbox) customCheckbox.checked = true;
             if (customEl) { customEl.value = value; customEl.style.display = 'block'; }
+        } else {
+            if (customCheckbox) customCheckbox.checked = false;
+            if (customEl) customEl.style.display = 'none';
         }
     }
 
@@ -370,12 +360,12 @@ class ConfigManager {
     getLocales() {
         return {
             zh: {
-                name: document.getElementById('locale-zh-name')?.value || '',
-                description: document.getElementById('locale-zh-desc')?.value || ''
+                name: document.getElementById('app-name')?.value || '',
+                description: document.getElementById('app-description')?.value || ''
             },
             en: {
-                name: document.getElementById('locale-en-name')?.value || '',
-                description: document.getElementById('locale-en-desc')?.value || ''
+                name: document.getElementById('app-name-en')?.value || '',
+                description: document.getElementById('app-description-en')?.value || ''
             }
         };
     }
@@ -385,13 +375,13 @@ class ConfigManager {
         if (!locales) return;
         const zh = locales.zh || {};
         const en = locales.en || {};
-        const zhName = document.getElementById('locale-zh-name');
+        const zhName = document.getElementById('app-name');
         if (zhName) zhName.value = zh.name || '';
-        const zhDesc = document.getElementById('locale-zh-desc');
+        const zhDesc = document.getElementById('app-description');
         if (zhDesc) zhDesc.value = zh.description || '';
-        const enName = document.getElementById('locale-en-name');
+        const enName = document.getElementById('app-name-en');
         if (enName) enName.value = en.name || '';
-        const enDesc = document.getElementById('locale-en-desc');
+        const enDesc = document.getElementById('app-description-en');
         if (enDesc) enDesc.value = en.description || '';
     }
 

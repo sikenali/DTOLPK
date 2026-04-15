@@ -945,7 +945,6 @@ class StepManager {
                 stepData.boxName = document.getElementById('box-name').value;
                 break;
             case 6: // 构建配置
-                stepData.buildContext = document.getElementById('build-context').value;
                 stepData.dockerfilePath = document.getElementById('dockerfile-path').value;
                 break;
             case 7: // 高级配置
@@ -1079,7 +1078,6 @@ class StepManager {
                 if (stepData.boxName) document.getElementById('box-name').value = stepData.boxName;
                 break;
             case 6: // 构建配置
-                if (stepData.buildContext) document.getElementById('build-context').value = stepData.buildContext;
                 if (stepData.dockerfilePath) document.getElementById('dockerfile-path').value = stepData.dockerfilePath;
                 break;
             case 7: // 高级配置

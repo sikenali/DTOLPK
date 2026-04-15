@@ -47,13 +47,6 @@ class LpkManager {
                     usb_accel: config.features.usbAccel,
                     workdir: config.application.workdir || '/lzcapp/pkg/content/',
                     image: config.application.image || '',
-                    health_check: {
-                        test_url: config.application.healthCheck.testUrl || '',
-                        start_period: config.application.healthCheck.startPeriod || '90s',
-                        disable: config.application.healthCheck.disable !== undefined
-                            ? config.application.healthCheck.disable
-                            : true
-                    },
                     handlers: {
                         error_page_templates: config.application.handlers.errorPageTemplates || {}
                     }
@@ -212,39 +205,6 @@ class LpkManager {
                             if (bindMount) {
                                 serviceConfig.binds.push(bindMount);
                             }
-                        }
-                    }
-
-                    // 添加健康检查配置
-                    if (service.healthcheck) {
-                        if (service.healthcheck.disable === true) {
-                            serviceConfig.health_check = { disable: true };
-                        } else {
-                            const healthCheck = {};
-
-                            if (service.healthcheck.test) {
-                                if (Array.isArray(service.healthcheck.test)) {
-                                    healthCheck.test = service.healthcheck.test
-                                        .map(cmd => processEnvVariables(cmd, envConfig));
-                                } else if (typeof service.healthcheck.test === 'string') {
-                                    healthCheck.test = [processEnvVariables(service.healthcheck.test, envConfig)];
-                                }
-                            }
-
-                            // 处理 start_period（支持数字和字符串格式）
-                            if (service.healthcheck.start_period) {
-                                const startPeriod = service.healthcheck.start_period;
-                                healthCheck.start_period = typeof startPeriod === 'number'
-                                    ? `${startPeriod}s`
-                                    : processEnvVariables(startPeriod, envConfig);
-                            }
-
-                            // 处理 test_url（扩展配置）
-                            if (service.healthcheck.test_url) {
-                                healthCheck.test_url = processEnvVariables(service.healthcheck.test_url, envConfig);
-                            }
-
-                            serviceConfig.health_check = healthCheck;
                         }
                     }
 
